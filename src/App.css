@@ -8,7 +8,9 @@
 
 .overview-panel,
 .market-panel,
+.settings-panel,
 .workspace-grid,
+.planner-panel,
 .guardrail-band {
   border: 1px solid var(--line);
   background: var(--panel);
@@ -84,6 +86,93 @@ dt {
   flex-direction: column;
   gap: 18px;
   padding: 28px;
+}
+
+.settings-panel,
+.planner-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 28px;
+}
+
+.section-heading p:not(.eyebrow) {
+  max-width: 760px;
+  color: var(--muted);
+}
+
+.settings-grid,
+.planner-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.setting-control {
+  display: flex;
+  min-height: 92px;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 14px;
+}
+
+.affixed-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 800;
+  text-transform: none;
+}
+
+input,
+select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--soft);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  padding: 9px 10px;
+}
+
+input:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.toggle-control {
+  min-height: 92px;
+  flex-direction: row;
+  align-items: center;
+}
+
+.toggle-control input {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--green);
+}
+
+.tax-copy,
+.empty-state,
+.position-note {
+  border-left: 4px solid var(--blue);
+  background: #ffffff;
+  color: var(--muted);
+  font-size: 14px;
+  padding: 10px 12px;
 }
 
 .feed-summary {
@@ -170,14 +259,61 @@ dt {
 
 .holding-card {
   display: flex;
-  min-height: 260px;
+  min-height: 430px;
   flex-direction: column;
   justify-content: space-between;
+  gap: 18px;
   border: 1px solid var(--line);
   border-top: 4px solid var(--green);
   border-radius: 8px;
   background: #ffffff;
   padding: 18px;
+}
+
+.holding-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.risk-pill,
+.ticket-state {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--soft);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 4px 7px;
+}
+
+.risk-pill.within_rules,
+.ticket-state.ready {
+  border-color: rgba(23, 143, 98, 0.35);
+  background: rgba(23, 143, 98, 0.1);
+  color: var(--green);
+}
+
+.risk-pill.alert {
+  border-color: rgba(168, 108, 8, 0.35);
+  background: rgba(168, 108, 8, 0.1);
+  color: var(--amber);
+}
+
+.risk-pill.over_cap {
+  border-color: rgba(176, 47, 47, 0.35);
+  background: rgba(176, 47, 47, 0.1);
+  color: var(--red);
+}
+
+.risk-pill.needs_input,
+.ticket-state.not_applicable {
+  border-color: rgba(102, 112, 107, 0.32);
+  background: rgba(102, 112, 107, 0.1);
+  color: var(--muted);
 }
 
 .symbol {
@@ -203,6 +339,22 @@ dt {
   color: var(--muted);
 }
 
+.manual-lot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.manual-lot-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 dl {
   display: grid;
   gap: 10px;
@@ -222,6 +374,48 @@ dd {
   color: var(--ink);
   font-weight: 700;
   text-align: right;
+}
+
+.planner-controls {
+  align-items: stretch;
+}
+
+.planner-controls .metric-tile {
+  min-height: 92px;
+}
+
+.ticket-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ticket-card {
+  display: flex;
+  min-height: 360px;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 16px;
+}
+
+.ticket-card.not_applicable {
+  background: #fafbf7;
+}
+
+.ticket-card h3 {
+  margin: 12px 0 6px;
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.ticket-card p {
+  color: var(--muted);
+  font-size: 14px;
 }
 
 .guardrail-band {
@@ -254,12 +448,15 @@ dd {
 @media (max-width: 1100px) {
   .overview-panel,
   .status-grid,
+  .settings-grid,
+  .planner-controls,
   .guardrail-band {
     grid-template-columns: 1fr;
   }
 
   .quote-grid,
-  .holding-grid {
+  .holding-grid,
+  .ticket-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -280,13 +477,17 @@ dd {
 
   .overview-panel,
   .market-panel,
+  .settings-panel,
   .workspace-grid,
+  .planner-panel,
   .guardrail-band {
     padding: 18px;
   }
 
   .quote-grid,
-  .holding-grid {
+  .holding-grid,
+  .ticket-grid,
+  .manual-lot-grid {
     grid-template-columns: 1fr;
   }
 }
