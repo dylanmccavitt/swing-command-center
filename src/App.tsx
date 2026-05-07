@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties, ChangeEvent } from 'react'
 import { seedHoldings } from './data/seedHoldings'
-import { seedWatchlist } from './data/seedWatchlist'
+import {
+  AI_STACK_LAYERS,
+  getAiStackLayerLabel,
+  seedWatchlist,
+} from './data/seedWatchlist'
+import type {
+  AiStackLayerId,
+  ResearchFields,
+  SeedWatchlistItem,
+  TradeSetupFields,
+} from './data/seedWatchlist'
 import {
   buildAllocationRows,
   buildConcentrationRows,
@@ -32,6 +42,15 @@ import {
 import type { PortfolioSettings } from './lib/portfolio'
 import { buildProfitLockTickets } from './lib/profitLock'
 import type { ProfitLockTicket } from './lib/profitLock'
+import {
+  buildResearchCandidateScores,
+  filterResearchCandidateScores,
+  groupResearchCardsByLayer,
+} from './lib/researchWatchlist'
+import type {
+  ResearchCandidateScore,
+  ResearchLayerGroup,
+} from './lib/researchWatchlist'
 import './App.css'
 
 type ManualLotInputs = Record<
@@ -51,6 +70,13 @@ type SettingsForm = {
   activeTradingSleeveDollars: string
 }
 
+type ResearchFiltersForm = {
+  layer: AiStackLayerId | 'all'
+  minimumScore: string
+  holdingsOnly: boolean
+  needsInputOnly: boolean
+}
+
 type PriceMovementRow = {
   symbol: string
   name: string
@@ -64,6 +90,12 @@ type PriceMovementRow = {
 }
 
 const DEFAULT_CASH_TARGET_AMOUNT = 1000
+const DEFAULT_RESEARCH_FILTERS: ResearchFiltersForm = {
+  layer: 'all',
+  minimumScore: '0',
+  holdingsOnly: false,
+  needsInputOnly: false,
+}
 
 const DEFAULT_SETTINGS_FORM: SettingsForm = {
   maxPositionWeightPercent: String(
@@ -103,6 +135,15 @@ function App() {
   const [cashTargetInput, setCashTargetInput] = useState(
     String(DEFAULT_CASH_TARGET_AMOUNT),
   )
+  const [researchCards, setResearchCards] = useState<
+    SeedWatchlistItem[]
+  >(() => cloneSeedWatchlist(seedWatchlist))
+  const [selectedResearchSymbol, setSelectedResearchSymbol] = useState(
+    seedWatchlist[0].symbol,
+  )
+  const [researchFilters, setResearchFilters] = useState<ResearchFiltersForm>(
+    DEFAULT_RESEARCH_FILTERS,
+  )
   const marketSymbols = useMemo(
     () =>
       getMarketDataSymbols(
@@ -120,6 +161,34 @@ function App() {
     () => buildPriceMovementRows(snapshot, marketSymbols, baselinePrices),
     [baselinePrices, marketSymbols, snapshot],
   )
+  const researchScores = useMemo(
+    () => buildResearchCandidateScores(researchCards),
+    [researchCards],
+  )
+  const researchScoreBySymbol = useMemo(() => {
+    return new Map(researchScores.map((score) => [score.symbol, score]))
+  }, [researchScores])
+  const researchLayerGroups = useMemo(
+    () => groupResearchCardsByLayer(researchCards),
+    [researchCards],
+  )
+  const filteredResearchScores = useMemo(
+    () =>
+      filterResearchCandidateScores(researchScores, {
+        layer: researchFilters.layer,
+        minimumScore: parseNumericInput(researchFilters.minimumScore) ?? 0,
+        holdingsOnly: researchFilters.holdingsOnly,
+        needsInputOnly: researchFilters.needsInputOnly,
+      }),
+    [researchFilters, researchScores],
+  )
+  const selectedResearchCard =
+    researchCards.find((card) => card.symbol === selectedResearchSymbol) ??
+    researchCards[0] ??
+    null
+  const selectedResearchScore = selectedResearchCard
+    ? researchScoreBySymbol.get(selectedResearchCard.symbol) ?? null
+    : null
   const portfolioSettings = useMemo(
     () => parseSettingsForm(settingsForm),
     [settingsForm],
@@ -214,6 +283,56 @@ function App() {
 
   function updateSetting(field: keyof SettingsForm, value: string | boolean) {
     setSettingsForm((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  function updateResearchField(
+    symbol: string,
+    field: keyof ResearchFields,
+    value: string,
+  ) {
+    setResearchCards((current) =>
+      current.map((card) =>
+        card.symbol === symbol
+          ? {
+              ...card,
+              research: {
+                ...card.research,
+                [field]: value,
+              },
+            }
+          : card,
+      ),
+    )
+  }
+
+  function updateTradeSetupField(
+    symbol: string,
+    field: keyof TradeSetupFields,
+    value: string,
+  ) {
+    setResearchCards((current) =>
+      current.map((card) =>
+        card.symbol === symbol
+          ? {
+              ...card,
+              tradeSetup: {
+                ...card.tradeSetup,
+                [field]: value,
+              },
+            }
+          : card,
+      ),
+    )
+  }
+
+  function updateResearchFilter(
+    field: keyof ResearchFiltersForm,
+    value: string | boolean,
+  ) {
+    setResearchFilters((current) => ({
       ...current,
       [field]: value,
     }))
@@ -322,6 +441,54 @@ function App() {
             <MovementChart isLoading={isMarketLoading} rows={movementRows} />
           </section>
         </div>
+      </section>
+
+      <section
+        className="research-workbench"
+        aria-label="AI stack research tracker"
+      >
+        <section className="cockpit-panel stack-map-panel">
+          <PanelHeading
+            eyebrow="AI stack"
+            title="Layer watchlist"
+            value={`${researchCards.length} cards`}
+          />
+          <StackLayerMap
+            groups={researchLayerGroups}
+            scoreBySymbol={researchScoreBySymbol}
+            selectedSymbol={selectedResearchSymbol}
+            onSelectSymbol={setSelectedResearchSymbol}
+          />
+        </section>
+
+        <section className="cockpit-panel research-card-panel">
+          <PanelHeading
+            eyebrow="Research card"
+            title={selectedResearchCard?.symbol ?? 'No symbol'}
+            value={selectedResearchScore?.statusLabel ?? 'Needs thesis'}
+          />
+          <ResearchCardEditor
+            card={selectedResearchCard}
+            score={selectedResearchScore}
+            onUpdateResearch={updateResearchField}
+            onUpdateTradeSetup={updateTradeSetupField}
+          />
+        </section>
+
+        <section className="cockpit-panel candidate-panel">
+          <PanelHeading
+            eyebrow="Checklist"
+            title="Candidate filter"
+            value={`${filteredResearchScores.length} shown`}
+          />
+          <CandidateFilterDesk
+            filters={researchFilters}
+            scores={filteredResearchScores}
+            selectedSymbol={selectedResearchSymbol}
+            onSelectSymbol={setSelectedResearchSymbol}
+            onUpdateFilter={updateResearchFilter}
+          />
+        </section>
       </section>
 
       <section className="chart-deck" aria-label="Portfolio charts">
@@ -581,6 +748,377 @@ function MarketStateBanner(props: {
   }
 
   return null
+}
+
+function StackLayerMap(props: {
+  groups: readonly ResearchLayerGroup[]
+  scoreBySymbol: Map<string, ResearchCandidateScore>
+  selectedSymbol: string
+  onSelectSymbol: (symbol: string) => void
+}) {
+  return (
+    <div className="layer-stack">
+      {props.groups.map((group) => (
+        <div className="layer-row" key={group.id}>
+          <div className="layer-row-heading">
+            <strong>{group.label}</strong>
+            <span>{group.items.length}</span>
+          </div>
+          <div className="layer-chip-list">
+            {group.items.map((item) => {
+              const score = props.scoreBySymbol.get(item.symbol)
+
+              return (
+                <button
+                  className={
+                    props.selectedSymbol === item.symbol ? 'is-selected' : ''
+                  }
+                  key={item.symbol}
+                  type="button"
+                  onClick={() => props.onSelectSymbol(item.symbol)}
+                >
+                  <span>{item.symbol}</span>
+                  <small>{score ? `${score.scorePercent}` : '0'}</small>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ResearchCardEditor(props: {
+  card: SeedWatchlistItem | null
+  score: ResearchCandidateScore | null
+  onUpdateResearch: (
+    symbol: string,
+    field: keyof ResearchFields,
+    value: string,
+  ) => void
+  onUpdateTradeSetup: (
+    symbol: string,
+    field: keyof TradeSetupFields,
+    value: string,
+  ) => void
+}) {
+  if (!props.card) {
+    return (
+      <EmptyState
+        detail="Add a watchlist symbol before editing research."
+        title="No research card selected"
+      />
+    )
+  }
+
+  const { card, score } = props
+
+  return (
+    <div className="research-card-editor">
+      <div className="research-card-topline">
+        <div>
+          <strong>{card.name}</strong>
+          <span>
+            {getAiStackLayerLabel(card.stackLayer)} ·{' '}
+            {card.seedType === 'current_holding'
+              ? 'Current holding'
+              : 'Placeholder'}
+          </span>
+        </div>
+        <ScoreMeter score={score} />
+      </div>
+
+      <p className="state-note">
+        Manual checklist only. This does not rank expected returns or generate
+        guaranteed trade recommendations.
+      </p>
+
+      <div className="research-fields">
+        <TextAreaField
+          label="Thesis"
+          value={card.research.thesis}
+          onChange={(value) =>
+            props.onUpdateResearch(card.symbol, 'thesis', value)
+          }
+        />
+        <TextAreaField
+          label="Catalyst"
+          value={card.research.catalyst}
+          onChange={(value) =>
+            props.onUpdateResearch(card.symbol, 'catalyst', value)
+          }
+        />
+        <TextAreaField
+          label="Invalidation"
+          value={card.research.invalidation}
+          onChange={(value) =>
+            props.onUpdateResearch(card.symbol, 'invalidation', value)
+          }
+        />
+        <TextAreaField
+          label="Risk notes"
+          value={card.research.riskNotes}
+          onChange={(value) =>
+            props.onUpdateResearch(card.symbol, 'riskNotes', value)
+          }
+        />
+      </div>
+
+      <div className="compact-field-grid">
+        <TextField
+          label="Planned entry"
+          value={card.research.plannedEntry}
+          onChange={(value) =>
+            props.onUpdateResearch(card.symbol, 'plannedEntry', value)
+          }
+        />
+        <TextField
+          label="Stop"
+          value={card.research.stop}
+          onChange={(value) =>
+            props.onUpdateResearch(card.symbol, 'stop', value)
+          }
+        />
+        <TextField
+          label="Target"
+          value={card.research.target}
+          onChange={(value) =>
+            props.onUpdateResearch(card.symbol, 'target', value)
+          }
+        />
+        <TextField
+          label="Review date"
+          type="date"
+          value={card.research.reviewDate}
+          onChange={(value) =>
+            props.onUpdateResearch(card.symbol, 'reviewDate', value)
+          }
+        />
+      </div>
+
+      <div className="setup-block">
+        <div className="setup-heading">
+          <strong>Trade setup</strong>
+          <span>Manual plan fields</span>
+        </div>
+        <div className="setup-grid">
+          <TextField
+            label="Entry trigger"
+            value={card.tradeSetup.entryTrigger}
+            onChange={(value) =>
+              props.onUpdateTradeSetup(card.symbol, 'entryTrigger', value)
+            }
+          />
+          <TextField
+            label="Stop level"
+            value={card.tradeSetup.stopLevel}
+            onChange={(value) =>
+              props.onUpdateTradeSetup(card.symbol, 'stopLevel', value)
+            }
+          />
+          <TextField
+            label="Target"
+            value={card.tradeSetup.target}
+            onChange={(value) =>
+              props.onUpdateTradeSetup(card.symbol, 'target', value)
+            }
+          />
+          <TextField
+            label="Max loss"
+            value={card.tradeSetup.maxLoss}
+            onChange={(value) =>
+              props.onUpdateTradeSetup(card.symbol, 'maxLoss', value)
+            }
+          />
+          <TextField
+            label="Planned scale-out"
+            value={card.tradeSetup.plannedScaleOut}
+            onChange={(value) =>
+              props.onUpdateTradeSetup(card.symbol, 'plannedScaleOut', value)
+            }
+          />
+          <TextField
+            label="Invalidation"
+            value={card.tradeSetup.invalidation}
+            onChange={(value) =>
+              props.onUpdateTradeSetup(card.symbol, 'invalidation', value)
+            }
+          />
+          <TextField
+            label="Time horizon"
+            value={card.tradeSetup.timeHorizon}
+            onChange={(value) =>
+              props.onUpdateTradeSetup(card.symbol, 'timeHorizon', value)
+            }
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CandidateFilterDesk(props: {
+  filters: ResearchFiltersForm
+  scores: readonly ResearchCandidateScore[]
+  selectedSymbol: string
+  onSelectSymbol: (symbol: string) => void
+  onUpdateFilter: (
+    field: keyof ResearchFiltersForm,
+    value: string | boolean,
+  ) => void
+}) {
+  return (
+    <div className="candidate-filter-desk">
+      <div className="filter-grid">
+        <label className="setting-control">
+          <span>Layer</span>
+          <select
+            value={props.filters.layer}
+            onChange={(event) =>
+              props.onUpdateFilter(
+                'layer',
+                event.target.value as ResearchFiltersForm['layer'],
+              )
+            }
+          >
+            <option value="all">All layers</option>
+            {AI_STACK_LAYERS.map((layer) => (
+              <option key={layer.id} value={layer.id}>
+                {layer.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <NumberSetting
+          label="Min score"
+          max="100"
+          min="0"
+          suffix="/100"
+          value={props.filters.minimumScore}
+          onChange={(value) => props.onUpdateFilter('minimumScore', value)}
+        />
+        <label className="setting-control toggle-control">
+          <span>Holdings only</span>
+          <input
+            checked={props.filters.holdingsOnly}
+            type="checkbox"
+            onChange={(event) =>
+              props.onUpdateFilter('holdingsOnly', event.target.checked)
+            }
+          />
+        </label>
+        <label className="setting-control toggle-control">
+          <span>Needs input</span>
+          <input
+            checked={props.filters.needsInputOnly}
+            type="checkbox"
+            onChange={(event) =>
+              props.onUpdateFilter('needsInputOnly', event.target.checked)
+            }
+          />
+        </label>
+      </div>
+      <p className="state-note">
+        Scores count completed checklist fields only. They do not score
+        attractiveness, probability, or expected return.
+      </p>
+      <CandidateScoreList
+        scores={props.scores}
+        selectedSymbol={props.selectedSymbol}
+        onSelectSymbol={props.onSelectSymbol}
+      />
+    </div>
+  )
+}
+
+function CandidateScoreList(props: {
+  scores: readonly ResearchCandidateScore[]
+  selectedSymbol: string
+  onSelectSymbol: (symbol: string) => void
+}) {
+  if (props.scores.length === 0) {
+    return (
+      <EmptyState
+        detail="Relax the layer, score, or input filters to show candidates."
+        title="No candidates match"
+      />
+    )
+  }
+
+  return (
+    <div className="candidate-score-list">
+      {props.scores.map((score) => (
+        <button
+          className={props.selectedSymbol === score.symbol ? 'is-selected' : ''}
+          key={score.symbol}
+          type="button"
+          onClick={() => props.onSelectSymbol(score.symbol)}
+        >
+          <span className="candidate-score">{score.scorePercent}</span>
+          <span>
+            <strong>{score.symbol}</strong>
+            <small>
+              {getAiStackLayerLabel(score.stackLayer)} · {score.statusLabel}
+            </small>
+          </span>
+          <small>{score.missingFields.length} open</small>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function ScoreMeter(props: { score: ResearchCandidateScore | null }) {
+  const scorePercent = props.score?.scorePercent ?? 0
+
+  return (
+    <div className="score-meter">
+      <span>{scorePercent}/100</span>
+      <div
+        aria-hidden="true"
+        style={{ '--score-width': `${scorePercent}%` } as CSSProperties}
+      >
+        <span />
+      </div>
+      <small>{props.score?.missingFields.length ?? 0} open fields</small>
+    </div>
+  )
+}
+
+function TextField(props: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  type?: 'text' | 'date'
+}) {
+  return (
+    <label className="field-control">
+      <span>{props.label}</span>
+      <input
+        type={props.type ?? 'text'}
+        value={props.value}
+        onChange={(event) => props.onChange(event.target.value)}
+      />
+    </label>
+  )
+}
+
+function TextAreaField(props: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+}) {
+  return (
+    <label className="field-control">
+      <span>{props.label}</span>
+      <textarea
+        rows={3}
+        value={props.value}
+        onChange={(event) => props.onChange(event.target.value)}
+      />
+    </label>
+  )
 }
 
 function TopScenarioList(props: {
@@ -1019,6 +1557,16 @@ function SkeletonRows(props: { count: number }) {
   )
 }
 
+function cloneSeedWatchlist(
+  cards: readonly SeedWatchlistItem[],
+): SeedWatchlistItem[] {
+  return cards.map((card) => ({
+    ...card,
+    research: { ...card.research },
+    tradeSetup: { ...card.tradeSetup },
+  }))
+}
+
 function useMarketDataSnapshot(symbols: readonly string[]): {
   snapshot: MarketDataSnapshot | null
   errorMessage: string | null
@@ -1140,16 +1688,22 @@ function addMissingBaselinePrices(
 
 function getSymbolLabel(symbol: string): { name: string; layer: string } {
   const holding = seedHoldings.find((item) => item.symbol === symbol)
+  const watchlistItem = seedWatchlist.find((item) => item.symbol === symbol)
 
   if (holding) {
-    return { name: holding.name, layer: 'Holding' }
+    return {
+      name: holding.name,
+      layer: watchlistItem
+        ? getAiStackLayerLabel(watchlistItem.stackLayer)
+        : 'Holding',
+    }
   }
-
-  const watchlistItem = seedWatchlist.find((item) => item.symbol === symbol)
 
   return {
     name: watchlistItem?.name ?? symbol,
-    layer: watchlistItem?.stackLayer ?? 'Watchlist',
+    layer: watchlistItem
+      ? getAiStackLayerLabel(watchlistItem.stackLayer)
+      : 'Watchlist',
   }
 }
 

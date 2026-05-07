@@ -58,6 +58,14 @@ const SYMBOL_COLORS: Record<string, string> = {
   GOOG: '#234f8e',
   NVDA: '#8a6b21',
   IREN: '#9a3f35',
+  AMD: '#6f4b8b',
+  TSM: '#2f6f8f',
+  MU: '#586b2e',
+  ASML: '#755c33',
+  SNPS: '#5c4c93',
+  ANET: '#2d7373',
+  VRT: '#7c6f2a',
+  CEG: '#8c4f4f',
 }
 
 export function buildTopProfitLockScenarios(input: {
