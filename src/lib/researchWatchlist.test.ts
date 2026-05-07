@@ -160,6 +160,7 @@ function buildCard(
       catalyst: overrides.catalyst ?? '',
       invalidation: overrides.invalidation ?? '',
       riskNotes: overrides.riskNotes ?? '',
+      sourceNotes: '',
       plannedEntry: overrides.plannedEntry ?? '',
       stop: overrides.stop ?? '',
       target: overrides.target ?? '',

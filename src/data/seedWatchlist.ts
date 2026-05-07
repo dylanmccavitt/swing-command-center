@@ -18,6 +18,7 @@ export type ResearchFields = {
   catalyst: string
   invalidation: string
   riskNotes: string
+  sourceNotes: string
   plannedEntry: string
   stop: string
   target: string
@@ -224,6 +225,7 @@ function buildResearchSeed(
 ): ResearchFields {
   return {
     ...input,
+    sourceNotes: '',
     plannedEntry: '',
     stop: '',
     target: '',
