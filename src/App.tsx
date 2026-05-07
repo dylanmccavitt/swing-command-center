@@ -1030,7 +1030,16 @@ function useMarketDataSnapshot(symbols: readonly string[]): {
     {},
   )
   const provider = useMemo(
-    () => createMarketDataProviderFromEnv(import.meta.env),
+    () =>
+      createMarketDataProviderFromEnv({
+        VITE_ALPACA_MARKET_DATA_FEED:
+          import.meta.env.VITE_ALPACA_MARKET_DATA_FEED,
+        VITE_ALPACA_MARKET_DATA_PROXY_READY:
+          import.meta.env.VITE_ALPACA_MARKET_DATA_PROXY_READY,
+        VITE_ALPACA_MARKET_DATA_PROXY_URL:
+          import.meta.env.VITE_ALPACA_MARKET_DATA_PROXY_URL,
+        VITE_MARKET_DATA_MODE: import.meta.env.VITE_MARKET_DATA_MODE,
+      }),
     [],
   )
   const symbolKey = symbols.join(',')

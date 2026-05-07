@@ -14,7 +14,9 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     define: {
-      __ALPACA_MARKET_DATA_PROXY_READY__: JSON.stringify(alpacaProxyReady),
+      'import.meta.env.VITE_ALPACA_MARKET_DATA_PROXY_READY': JSON.stringify(
+        alpacaProxyReady ? 'true' : 'false',
+      ),
     },
     server: {
       proxy: {

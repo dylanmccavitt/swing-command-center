@@ -102,7 +102,7 @@ export function createMarketDataProvider(
   return createAlpacaMarketDataProvider({
     feed,
     proxyBaseUrl: config.proxyBaseUrl ?? DEFAULT_ALPACA_PROXY_BASE_URL,
-    fetch: config.fetch ?? globalThis.fetch,
+    fetch: config.fetch ?? globalThis.fetch.bind(globalThis),
     now,
     staleAfterMs: config.staleAfterMs ?? MARKET_DATA_STALE_AFTER_MS,
   })
@@ -115,7 +115,7 @@ export function createMarketDataProviderFromEnv(
     mode: envString(env.VITE_MARKET_DATA_MODE),
     feed: envString(env.VITE_ALPACA_MARKET_DATA_FEED),
     proxyBaseUrl: envString(env.VITE_ALPACA_MARKET_DATA_PROXY_URL),
-    alpacaAvailable: __ALPACA_MARKET_DATA_PROXY_READY__,
+    alpacaAvailable: envBoolean(env.VITE_ALPACA_MARKET_DATA_PROXY_READY),
   })
 }
 
@@ -373,6 +373,10 @@ function normalizeMode(mode: string | boolean | undefined): MarketDataMode {
 
 function envString(value: string | boolean | undefined): string | undefined {
   return typeof value === 'string' ? value : undefined
+}
+
+function envBoolean(value: string | boolean | undefined): boolean {
+  return value === true || value === 'true'
 }
 
 function normalizeFeed(feed: string | boolean | undefined): MarketDataFeed {

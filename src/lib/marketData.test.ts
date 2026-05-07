@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   createMarketDataProvider,
+  createMarketDataProviderFromEnv,
   describeQuoteFreshness,
   normalizeAlpacaQuote,
 } from './marketData'
@@ -69,6 +70,15 @@ describe('market data provider', () => {
       'mock',
       'mock',
     ])
+  })
+
+  it('uses the env readiness flag to enable the Alpaca provider', async () => {
+    const provider = createMarketDataProviderFromEnv({
+      VITE_ALPACA_MARKET_DATA_FEED: 'iex',
+      VITE_ALPACA_MARKET_DATA_PROXY_READY: 'true',
+    })
+
+    expect(provider.name).toBe('alpaca')
   })
 
   it('falls back to mock quotes when Alpaca requests fail', async () => {
