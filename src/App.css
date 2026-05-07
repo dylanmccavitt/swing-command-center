@@ -571,6 +571,7 @@ dd {
 .candidate-filter-desk,
 .candidate-score-list,
 .research-run-desk,
+.codex-queue-desk,
 .research-source-list {
   display: grid;
   gap: 10px;
@@ -703,13 +704,23 @@ dd {
   padding: 10px;
 }
 
+.codex-queue-desk {
+  border: 1px solid var(--line);
+  background: var(--soft);
+  padding: 10px;
+}
+
 .research-run-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.research-run-actions button {
+.research-run-actions button,
+.file-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 34px;
   border: 1px solid var(--line);
   background: var(--soft);
@@ -721,7 +732,20 @@ dd {
   padding: 7px 10px;
 }
 
-.research-run-actions button:hover:not(:disabled) {
+.file-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.file-button input {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.research-run-actions button:hover:not(:disabled),
+.file-button:hover {
   border-color: rgba(36, 107, 87, 0.45);
   background: rgba(36, 107, 87, 0.08);
 }
@@ -742,13 +766,25 @@ dd {
   padding: 9px 10px;
 }
 
-.research-run-state strong {
+.codex-queue-state {
+  display: grid;
+  gap: 3px;
+  border-left: 4px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  padding: 9px 10px;
+}
+
+.research-run-state strong,
+.codex-queue-state strong {
   color: var(--ink);
   font-size: 12px;
   text-transform: uppercase;
 }
 
 .research-run-state time,
+.codex-queue-state time,
 .research-source-row time,
 .research-source-row > div:last-of-type span {
   color: var(--muted);
@@ -761,8 +797,14 @@ dd {
   border-left-color: var(--amber);
 }
 
+.codex-queue-state.pending,
+.codex-queue-state.missing_result {
+  border-left-color: var(--amber);
+}
+
 .research-run-state.needs_review,
-.research-run-state.reviewed {
+.research-run-state.reviewed,
+.codex-queue-state.imported {
   border-left-color: var(--accent);
 }
 
@@ -771,8 +813,27 @@ dd {
   border-left-color: var(--amber);
 }
 
-.research-run-state.error {
+.research-run-state.error,
+.codex-queue-state.invalid_result,
+.codex-queue-state.error {
   border-left-color: var(--red);
+}
+
+.queue-path-list,
+.queue-error-list {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.queue-error-list {
+  margin: 0;
+  padding-left: 16px;
+  color: var(--red);
 }
 
 .research-source-row {

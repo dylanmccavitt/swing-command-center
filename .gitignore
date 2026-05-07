@@ -16,6 +16,8 @@ dist-ssr
 !.env.example
 coverage/
 .worktrees/
+research-queue/requests/*.json
+research-queue/results/*.json
 
 # Editor directories and files
 .vscode/*

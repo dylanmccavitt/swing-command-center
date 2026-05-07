@@ -73,3 +73,20 @@ URLs, timestamps, and freshness for recent news, investor materials, filings,
 earnings materials, and sector context. Drafts are marked AI-drafted / needs
 review until the user manually reviews them, and every drafted field remains
 editable.
+
+## Codex Research Queue
+
+The research card can also queue a local Codex/ChatGPT research request. The
+app downloads a structured request JSON for the selected card, including symbol,
+company name, AI-stack layer, current editable fields, required result schema,
+and guardrails. A human or Codex worker processes that file manually with
+browser, Chrome, ChatGPT, or Deep Research using `docs/codex-research-worker.md`,
+then writes a result JSON under `research-queue/results/`.
+
+Generated `research-queue/requests/*.json` and
+`research-queue/results/*.json` files are ignored by git. The app validates a
+selected result file before importing thesis, catalyst, invalidation, risk
+notes, review date, source notes, and source metadata into the existing editable
+research card as AI-drafted / Needs review. This flow does not call OpenAI APIs,
+does not require API keys, and must not produce buy/sell instructions or
+guaranteed recommendations.
