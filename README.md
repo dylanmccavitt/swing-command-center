@@ -23,6 +23,11 @@ ALPACA_MARKET_DATA_API_KEY_ID=...
 ALPACA_MARKET_DATA_SECRET_KEY=...
 ```
 
+Issue worktrees also read the canonical checkout's ignored `.env.local` through
+the shared git directory. Put the Alpaca keys once in
+`/Users/dylanmccavitt/projects/swing-command-center/.env.local`, and new
+worktrees can reuse them without copying secrets into source control.
+
 ## Check
 
 ```bash

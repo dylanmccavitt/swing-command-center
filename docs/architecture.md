@@ -41,7 +41,9 @@ profit-lock scenario tickets.
 - Market-data boundary: live prices belong behind `MarketDataProvider`.
   Alpaca Market Data is the first provider and uses the Vite dev proxy so
   secret-bearing headers stay out of the browser bundle. Missing keys or
-  failed requests fall back to mock quotes.
+  failed requests fall back to mock quotes. Issue worktrees may reuse the
+  canonical checkout's ignored `.env.local` through the shared git directory;
+  worktree-local env files still override it.
 - Persistence boundary: MVP state should stay local. Repo fixtures must not
   contain account-specific secrets or private brokerage data.
 - Advice boundary: the app can calculate and organize planning information, but
