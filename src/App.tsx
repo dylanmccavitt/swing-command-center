@@ -51,6 +51,17 @@ import type {
   ResearchCandidateScore,
   ResearchLayerGroup,
 } from './lib/researchWatchlist'
+import {
+  buildResearchDraftFromBundle,
+  createCuratedResearchProvider,
+  describeResearchSourceType,
+  RESEARCH_DRAFT_DISCLOSURE,
+} from './lib/researchProvider'
+import type {
+  ResearchContextBundle,
+  ResearchDraft,
+  ResearchSource,
+} from './lib/researchProvider'
 import './App.css'
 
 type ManualLotInputs = Record<
@@ -77,6 +88,25 @@ type ResearchFiltersForm = {
   needsInputOnly: boolean
 }
 
+type ResearchRunStatus =
+  | 'idle'
+  | 'loading'
+  | 'needs_review'
+  | 'reviewed'
+  | 'empty_source'
+  | 'stale_source'
+  | 'error'
+
+type ResearchRunRecord = {
+  status: ResearchRunStatus
+  updatedAt: string | null
+  message: string
+  sources: ResearchSource[]
+  draft: ResearchDraft | null
+}
+
+type ResearchRunMap = Record<string, ResearchRunRecord>
+
 type PriceMovementRow = {
   symbol: string
   name: string
@@ -95,6 +125,14 @@ const DEFAULT_RESEARCH_FILTERS: ResearchFiltersForm = {
   minimumScore: '0',
   holdingsOnly: false,
   needsInputOnly: false,
+}
+
+const IDLE_RESEARCH_RUN: ResearchRunRecord = {
+  status: 'idle',
+  updatedAt: null,
+  message: 'Run source research to draft editable thesis fields.',
+  sources: [],
+  draft: null,
 }
 
 const DEFAULT_SETTINGS_FORM: SettingsForm = {
@@ -144,6 +182,11 @@ function App() {
   const [researchFilters, setResearchFilters] = useState<ResearchFiltersForm>(
     DEFAULT_RESEARCH_FILTERS,
   )
+  const [researchRuns, setResearchRuns] = useState<ResearchRunMap>({})
+  const researchProvider = useMemo(
+    () => createCuratedResearchProvider({ cards: seedWatchlist }),
+    [],
+  )
   const marketSymbols = useMemo(
     () =>
       getMarketDataSymbols(
@@ -189,6 +232,9 @@ function App() {
   const selectedResearchScore = selectedResearchCard
     ? researchScoreBySymbol.get(selectedResearchCard.symbol) ?? null
     : null
+  const selectedResearchRun = selectedResearchCard
+    ? researchRuns[selectedResearchCard.symbol] ?? IDLE_RESEARCH_RUN
+    : IDLE_RESEARCH_RUN
   const portfolioSettings = useMemo(
     () => parseSettingsForm(settingsForm),
     [settingsForm],
@@ -338,6 +384,125 @@ function App() {
     }))
   }
 
+  async function runResearchForSymbols(symbols: readonly string[]) {
+    const targetSymbols = Array.from(
+      new Set(symbols.map((symbol) => symbol.trim().toUpperCase())),
+    ).filter(Boolean)
+
+    if (targetSymbols.length === 0) {
+      return
+    }
+
+    const loadingAt = new Date().toISOString()
+
+    setResearchRuns((current) => {
+      const next = { ...current }
+
+      for (const symbol of targetSymbols) {
+        next[symbol] = {
+          status: 'loading',
+          updatedAt: loadingAt,
+          message: 'Loading transparent source context.',
+          sources: current[symbol]?.sources ?? [],
+          draft: current[symbol]?.draft ?? null,
+        }
+      }
+
+      return next
+    })
+
+    try {
+      const bundles = await researchProvider.loadResearchContext(targetSymbols)
+      const draftBySymbol = new Map<string, ResearchDraft>()
+      const nextRecords = Object.fromEntries(
+        bundles.map((bundle) => {
+          const draft = buildResearchDraftFromBundle(bundle)
+
+          if (draft) {
+            draftBySymbol.set(bundle.symbol, draft)
+          }
+
+          return [bundle.symbol, buildResearchRunRecord(bundle, draft)]
+        }),
+      )
+
+      if (draftBySymbol.size > 0) {
+        setResearchCards((current) =>
+          current.map((card) => {
+            const draft = draftBySymbol.get(card.symbol)
+
+            if (!draft) {
+              return card
+            }
+
+            return {
+              ...card,
+              research: {
+                ...card.research,
+                ...draft.fields,
+              },
+            }
+          }),
+        )
+      }
+
+      setResearchRuns((current) => ({
+        ...current,
+        ...nextRecords,
+      }))
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Research provider failed to load source context.'
+      const failedAt = new Date().toISOString()
+
+      setResearchRuns((current) => {
+        const next = { ...current }
+
+        for (const symbol of targetSymbols) {
+          next[symbol] = {
+            status: 'error',
+            updatedAt: failedAt,
+            message,
+            sources: current[symbol]?.sources ?? [],
+            draft: current[symbol]?.draft ?? null,
+          }
+        }
+
+        return next
+      })
+    }
+  }
+
+  function runResearchForLayer(layer: AiStackLayerId) {
+    const layerSymbols = researchCards
+      .filter((card) => card.stackLayer === layer)
+      .map((card) => card.symbol)
+
+    void runResearchForSymbols(layerSymbols)
+  }
+
+  function markResearchReviewed(symbol: string) {
+    setResearchRuns((current) => {
+      const record = current[symbol]
+
+      if (!record) {
+        return current
+      }
+
+      return {
+        ...current,
+        [symbol]: {
+          ...record,
+          status: 'reviewed',
+          updatedAt: new Date().toISOString(),
+          message: 'Draft marked reviewed. Fields remain manually editable.',
+        },
+      }
+    })
+  }
+
   return (
     <main className="cockpit-shell">
       <section className="command-surface" aria-labelledby="page-title">
@@ -469,7 +634,11 @@ function App() {
           />
           <ResearchCardEditor
             card={selectedResearchCard}
+            runState={selectedResearchRun}
             score={selectedResearchScore}
+            onMarkReviewed={markResearchReviewed}
+            onRunLayer={runResearchForLayer}
+            onRunSymbol={(symbol) => void runResearchForSymbols([symbol])}
             onUpdateResearch={updateResearchField}
             onUpdateTradeSetup={updateTradeSetupField}
           />
@@ -792,6 +961,10 @@ function StackLayerMap(props: {
 function ResearchCardEditor(props: {
   card: SeedWatchlistItem | null
   score: ResearchCandidateScore | null
+  runState: ResearchRunRecord
+  onRunSymbol: (symbol: string) => void
+  onRunLayer: (layer: AiStackLayerId) => void
+  onMarkReviewed: (symbol: string) => void
   onUpdateResearch: (
     symbol: string,
     field: keyof ResearchFields,
@@ -834,6 +1007,14 @@ function ResearchCardEditor(props: {
         guaranteed trade recommendations.
       </p>
 
+      <ResearchRunDesk
+        card={card}
+        runState={props.runState}
+        onMarkReviewed={props.onMarkReviewed}
+        onRunLayer={props.onRunLayer}
+        onRunSymbol={props.onRunSymbol}
+      />
+
       <div className="research-fields">
         <TextAreaField
           label="Thesis"
@@ -861,6 +1042,13 @@ function ResearchCardEditor(props: {
           value={card.research.riskNotes}
           onChange={(value) =>
             props.onUpdateResearch(card.symbol, 'riskNotes', value)
+          }
+        />
+        <TextAreaField
+          label="Source notes"
+          value={card.research.sourceNotes}
+          onChange={(value) =>
+            props.onUpdateResearch(card.symbol, 'sourceNotes', value)
           }
         />
       </div>
@@ -954,6 +1142,97 @@ function ResearchCardEditor(props: {
           />
         </div>
       </div>
+    </div>
+  )
+}
+
+function ResearchRunDesk(props: {
+  card: SeedWatchlistItem
+  runState: ResearchRunRecord
+  onRunSymbol: (symbol: string) => void
+  onRunLayer: (layer: AiStackLayerId) => void
+  onMarkReviewed: (symbol: string) => void
+}) {
+  const { card, runState } = props
+  const isLoading = runState.status === 'loading'
+  const canMarkReviewed =
+    runState.status === 'needs_review' || runState.status === 'stale_source'
+
+  return (
+    <div className={`research-run-desk ${runState.status}`}>
+      <div className="research-run-actions">
+        <button
+          disabled={isLoading}
+          type="button"
+          onClick={() => props.onRunSymbol(card.symbol)}
+        >
+          {isLoading ? 'Running' : 'Run research'}
+        </button>
+        <button
+          disabled={isLoading}
+          type="button"
+          onClick={() => props.onRunLayer(card.stackLayer)}
+        >
+          Run layer
+        </button>
+        {canMarkReviewed && (
+          <button
+            type="button"
+            onClick={() => props.onMarkReviewed(card.symbol)}
+          >
+            Mark reviewed
+          </button>
+        )}
+      </div>
+
+      <div className={`research-run-state ${runState.status}`}>
+        <strong>{getResearchRunStatusLabel(runState.status)}</strong>
+        <span>{runState.message}</span>
+        {runState.updatedAt && (
+          <time>{formatDateTime(runState.updatedAt)}</time>
+        )}
+      </div>
+
+      <p className="state-note">{RESEARCH_DRAFT_DISCLOSURE}</p>
+
+      {runState.sources.length > 0 ? (
+        <ResearchSourceList sources={runState.sources} />
+      ) : (
+        runState.status === 'empty_source' && (
+          <EmptyState
+            detail="The selected symbol has no configured research source catalog yet."
+            title="No sources found"
+          />
+        )
+      )}
+    </div>
+  )
+}
+
+function ResearchSourceList(props: { sources: readonly ResearchSource[] }) {
+  return (
+    <div className="research-source-list">
+      {props.sources.map((source) => (
+        <article
+          className={`research-source-row ${source.freshness}`}
+          key={source.id}
+        >
+          <div>
+            <strong>{describeResearchSourceType(source.type)}</strong>
+            <span>{source.title}</span>
+          </div>
+          <a href={source.url} rel="noreferrer" target="_blank">
+            {source.url}
+          </a>
+          <div>
+            <time dateTime={source.retrievedAt}>
+              Retrieved {formatDateTime(source.retrievedAt)}
+            </time>
+            <span>{source.freshness === 'stale' ? 'Stale' : 'Fresh'}</span>
+          </div>
+          <p>{source.summary}</p>
+        </article>
+      ))}
     </div>
   )
 }
@@ -1567,6 +1846,61 @@ function cloneSeedWatchlist(
   }))
 }
 
+function buildResearchRunRecord(
+  bundle: ResearchContextBundle,
+  draft: ResearchDraft | null,
+): ResearchRunRecord {
+  if (!draft || bundle.status === 'empty_source') {
+    return {
+      status: 'empty_source',
+      updatedAt: bundle.generatedAt,
+      message:
+        bundle.warning ?? 'No transparent sources were returned for this symbol.',
+      sources: bundle.sources,
+      draft: null,
+    }
+  }
+
+  if (bundle.status === 'stale_source') {
+    return {
+      status: 'stale_source',
+      updatedAt: bundle.generatedAt,
+      message:
+        'Draft inserted, but every source timestamp is stale. Review URLs before relying on it.',
+      sources: bundle.sources,
+      draft,
+    }
+  }
+
+  return {
+    status: 'needs_review',
+    updatedAt: bundle.generatedAt,
+    message:
+      'AI-drafted fields were inserted. Review every source note before accepting the card.',
+    sources: bundle.sources,
+    draft,
+  }
+}
+
+function getResearchRunStatusLabel(status: ResearchRunStatus): string {
+  switch (status) {
+    case 'idle':
+      return 'Needs research'
+    case 'loading':
+      return 'Loading sources'
+    case 'needs_review':
+      return 'AI-drafted · Needs review'
+    case 'reviewed':
+      return 'Reviewed'
+    case 'empty_source':
+      return 'Empty source'
+    case 'stale_source':
+      return 'Stale source · Needs review'
+    case 'error':
+      return 'Research error'
+  }
+}
+
 function useMarketDataSnapshot(symbols: readonly string[]): {
   snapshot: MarketDataSnapshot | null
   errorMessage: string | null
@@ -1862,5 +2196,14 @@ function formatTimestamp(timestamp: string): string {
     hour: 'numeric',
     minute: '2-digit',
     second: '2-digit',
+  }).format(new Date(timestamp))
+}
+
+function formatDateTime(timestamp: string): string {
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
   }).format(new Date(timestamp))
 }

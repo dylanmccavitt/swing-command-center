@@ -66,3 +66,10 @@ candidates by hyperscalers, GPU/chip designers, foundries, memory,
 semiconductor equipment, EDA/IP, networking, power/cooling, data centers, and
 energy. Research cards and trade setup fields are manual checklist inputs; the
 score only measures filled fields and is not a recommendation engine.
+
+`Run research` drafts thesis, catalyst, invalidation, risk notes, review date,
+and source notes from a typed research-provider boundary. The source pack shows
+URLs, timestamps, and freshness for recent news, investor materials, filings,
+earnings materials, and sector context. Drafts are marked AI-drafted / needs
+review until the user manually reviews them, and every drafted field remains
+editable.

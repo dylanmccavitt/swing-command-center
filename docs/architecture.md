@@ -8,7 +8,10 @@ accepts manual local lot inputs in the browser session, polls a replaceable
 market-data provider for holdings and research watchlist symbols, turns
 complete positions into concentration status, chart rows, and manual
 profit-lock scenario tickets, and keeps an editable AI-stack research watchlist
-for thesis-first trade setup tracking.
+for thesis-first trade setup tracking. The research desk can run a typed
+research-provider flow for one symbol or the selected AI-stack layer, then
+draft editable research fields with visible source URLs, timestamps, and review
+state.
 
 ## Major Components
 
@@ -31,6 +34,9 @@ for thesis-first trade setup tracking.
 - `src/lib/researchWatchlist.ts`: manual research-card grouping, checklist
   scoring, and filtering helpers. Scores are field-completeness checks, not
   expected-return or recommendation scores.
+- `src/lib/researchProvider.ts`: typed research source boundary, curated
+  source-pack builder, stale/empty source states, and normalized AI-drafted
+  research fields for manual review.
 - `vite.config.ts`: Vite/Vitest config plus the local dev proxy that injects
   Alpaca Market Data headers from local environment variables.
 - `docs/handoffs/`: resume state for active or recently completed issue work.
@@ -58,6 +64,11 @@ for thesis-first trade setup tracking.
   thesis/setup fields are filled. They must not be framed as an AI model,
   guaranteed recommendation, ranking of expected returns, or automated trade
   signal.
+- Research-draft boundary: generated research drafts must stay behind a typed
+  `ResearchProvider`, show source metadata, write into editable fields only,
+  and remain marked AI-drafted / needs review until the user reviews them.
+  Drafts must not include guaranteed recommendations, buy/sell instructions,
+  brokerage access, or order execution.
 
 ## Main Flows
 
@@ -80,9 +91,15 @@ for thesis-first trade setup tracking.
 9. Research watchlist helpers group current holdings and placeholder candidates
    by AI-stack layer, calculate manual checklist completeness, and filter the
    candidate list by layer, score, holding status, and missing inputs.
-10. Tests verify that the seed list remains limited to the known symbols, does
+10. The user can run research for the selected symbol or selected layer. The
+   research provider returns recent-news, investor, filing, earnings, and
+   sector-context source metadata; the app drafts thesis, catalyst,
+   invalidation, risk notes, review date, and source notes into the editable
+   card.
+11. Tests verify that the seed list remains limited to the known symbols, does
    not invent lot data, and that portfolio/profit-lock/cockpit math remains
-   stable.
+   stable. Research-provider tests cover source metadata, stale/empty states,
+   draft normalization, and non-recommendation copy.
 
 ## Important Invariants
 
@@ -102,6 +119,9 @@ for thesis-first trade setup tracking.
 - Research card and trade setup data stays manually editable in the browser
   session; source-controlled seeds must not be presented as guaranteed
   recommendations.
+- Research source packs must show URL, retrieved timestamp, and freshness before
+  the draft can be treated as reviewed.
 - UI state must clearly show loading, empty, stale-data, and error/fallback
-  market conditions without inventing brokerage holdings or trade history.
+  market and research conditions without inventing brokerage holdings or trade
+  history.
 - Issue work should preserve one issue, one branch, one worktree, one thread.
