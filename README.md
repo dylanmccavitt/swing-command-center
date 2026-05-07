@@ -42,4 +42,7 @@ The bootstrap seed includes the known current holding symbols:
 - IREN
 
 Share counts and cost basis are intentionally left as manual local inputs for
-later slices.
+the browser session. The planner combines those inputs with current market data
+to show position value, cost basis, unrealized P/L, concentration status, and
+manual profit-lock scenario tickets. Scenario tickets are planning aids only and
+do not place trades.
