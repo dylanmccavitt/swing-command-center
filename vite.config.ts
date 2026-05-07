@@ -1,10 +1,13 @@
+import { execFileSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 import react from '@vitejs/plugin-react'
 import { loadEnv } from 'vite'
 import { configDefaults, defineConfig } from 'vitest/config'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, '.', '')
+  const env = loadRepoEnv(mode)
   const alpacaKeyId =
     env.ALPACA_MARKET_DATA_API_KEY_ID || env.APCA_API_KEY_ID || ''
   const alpacaSecret =
@@ -14,7 +17,9 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     define: {
-      __ALPACA_MARKET_DATA_PROXY_READY__: JSON.stringify(alpacaProxyReady),
+      'import.meta.env.VITE_ALPACA_MARKET_DATA_PROXY_READY': JSON.stringify(
+        alpacaProxyReady ? 'true' : 'false',
+      ),
     },
     server: {
       proxy: {
@@ -42,3 +47,36 @@ export default defineConfig(({ mode }) => {
     },
   }
 })
+
+function loadRepoEnv(mode: string): Record<string, string> {
+  const localEnvRoot = process.cwd()
+  const sharedEnvRoot = getSharedEnvRoot(localEnvRoot)
+
+  if (!sharedEnvRoot || resolve(sharedEnvRoot) === resolve(localEnvRoot)) {
+    return loadEnv(mode, localEnvRoot, '')
+  }
+
+  return {
+    ...loadEnv(mode, sharedEnvRoot, ''),
+    ...loadEnv(mode, localEnvRoot, ''),
+  }
+}
+
+function getSharedEnvRoot(localEnvRoot: string): string | null {
+  try {
+    const gitCommonDir = execFileSync(
+      'git',
+      ['rev-parse', '--path-format=absolute', '--git-common-dir'],
+      {
+        cwd: localEnvRoot,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      },
+    ).trim()
+    const repoRoot = dirname(gitCommonDir)
+
+    return existsSync(join(repoRoot, 'package.json')) ? repoRoot : null
+  } catch {
+    return null
+  }
+}

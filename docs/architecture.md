@@ -3,14 +3,16 @@
 ## Current System Shape
 
 Swing Command Center is a local Vite, React, and TypeScript frontend app. It
-renders a portfolio cockpit shell from static seed holding metadata, accepts
-manual local lot inputs in the browser session, polls a replaceable market-data
-provider for holdings and research watchlist symbols, and turns complete
-positions into concentration status plus manual profit-lock scenario tickets.
+renders a dense portfolio cockpit shell from static seed holding metadata,
+accepts manual local lot inputs in the browser session, polls a replaceable
+market-data provider for holdings and research watchlist symbols, and turns
+complete positions into concentration status, chart rows, and manual
+profit-lock scenario tickets.
 
 ## Major Components
 
-- `src/App.tsx`: app shell and first-screen composition.
+- `src/App.tsx`: app shell, first-screen cockpit composition, chart rendering,
+  manual lot inputs, settings controls, and market-data state surfaces.
 - `src/data/seedHoldings.ts`: known current holding symbols and lightweight
   metadata for AAPL, GOOG, NVDA, and IREN.
 - `src/data/seedWatchlist.ts`: small AI/semiconductor/data-center research
@@ -22,6 +24,9 @@ positions into concentration status plus manual profit-lock scenario tickets.
 - `src/lib/profitLock.ts`: manual scenario ticket calculators for trimming to
   target weight, locking unrealized gains, recovering cost basis, raising a
   cash target, and estimating an editable tax reserve bucket.
+- `src/lib/cockpit.ts`: first-screen derived summaries, top profit-lock
+  scenario ranking, allocation/gain/concentration chart rows, and symbol color
+  mapping.
 - `vite.config.ts`: Vite/Vitest config plus the local dev proxy that injects
   Alpaca Market Data headers from local environment variables.
 - `docs/handoffs/`: resume state for active or recently completed issue work.
@@ -36,7 +41,9 @@ positions into concentration status plus manual profit-lock scenario tickets.
 - Market-data boundary: live prices belong behind `MarketDataProvider`.
   Alpaca Market Data is the first provider and uses the Vite dev proxy so
   secret-bearing headers stay out of the browser bundle. Missing keys or
-  failed requests fall back to mock quotes.
+  failed requests fall back to mock quotes. Issue worktrees may reuse the
+  canonical checkout's ignored `.env.local` through the shared git directory;
+  worktree-local env files still override it.
 - Persistence boundary: MVP state should stay local. Repo fixtures must not
   contain account-specific secrets or private brokerage data.
 - Advice boundary: the app can calculate and organize planning information, but
@@ -55,10 +62,16 @@ positions into concentration status plus manual profit-lock scenario tickets.
 5. Portfolio helpers combine manual lots with current prices to calculate
    market value, cost basis, unrealized P/L, portfolio weight, and
    concentration state.
-6. Profit-lock helpers turn a complete selected position into scenario tickets
+6. Cockpit helpers rank ready manual profit-lock scenarios across complete
+   positions and summarize concentration and cash/runway status for the first
+   screen.
+7. Chart components render allocation, gains by holding, concentration, and
+   session price/watchlist movement from typed derived rows.
+8. Profit-lock helpers turn a complete selected position into scenario tickets
    for target-weight trims, gain locks, cost-basis recovery, and cash raising.
-7. Tests verify that the seed list remains limited to the known symbols, does
-   not invent lot data, and that portfolio/profit-lock math remains stable.
+9. Tests verify that the seed list remains limited to the known symbols, does
+   not invent lot data, and that portfolio/profit-lock/cockpit math remains
+   stable.
 
 ## Important Invariants
 
@@ -72,4 +85,6 @@ positions into concentration status plus manual profit-lock scenario tickets.
   unless the user edits the session settings.
 - Tax reserve is an editable estimate bucket for planning, not tax advice or a
   filing calculation.
+- UI state must clearly show loading, empty, stale-data, and error/fallback
+  market conditions without inventing brokerage holdings or trade history.
 - Issue work should preserve one issue, one branch, one worktree, one thread.

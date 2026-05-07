@@ -1,24 +1,22 @@
 :root {
-  --bg: #f5f7f2;
-  --panel: #fbfcf8;
-  --soft: #f0f4ef;
-  --cream: #fff7df;
-  --ink: #171813;
-  --muted: #66706b;
-  --line: #d9dfd6;
-  --green: #178f62;
-  --blue: #1d63c8;
-  --amber: #a86c08;
-  --red: #b02f2f;
-  --shadow: 0 18px 50px rgba(45, 54, 39, 0.08);
+  --bg: #eef1ef;
+  --panel: #f8faf8;
+  --surface: #ffffff;
+  --soft: #e8eeeb;
+  --ink: #171b19;
+  --muted: #66736d;
+  --line: #d3dcd7;
+  --line-strong: #aab8b1;
+  --accent: #246b57;
+  --amber: #a56f1a;
+  --red: #ae3d34;
+  --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
 
-  font: 16px/1.5 Inter, ui-sans-serif, system-ui, -apple-system,
+  font: 16px/1.5 Geist, Satoshi, ui-sans-serif, system-ui, -apple-system,
     BlinkMacSystemFont, 'Segoe UI', sans-serif;
   letter-spacing: 0;
   color: var(--ink);
-  background:
-    linear-gradient(180deg, rgba(23, 143, 98, 0.08), transparent 360px),
-    var(--bg);
+  background: var(--bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -27,6 +25,11 @@
 
 body {
   margin: 0;
+  background:
+    linear-gradient(90deg, rgba(23, 27, 25, 0.04) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(23, 27, 25, 0.04) 1px, transparent 1px),
+    var(--bg);
+  background-size: 32px 32px;
 }
 
 * {
@@ -34,13 +37,14 @@ body {
 }
 
 #root {
-  min-height: 100svh;
+  min-height: 100dvh;
 }
 
 h1 {
   margin: 0;
   color: var(--ink);
-  font-size: 64px;
+  font-size: 46px;
+  font-weight: 850;
   line-height: 0.95;
   letter-spacing: 0;
 }
@@ -48,7 +52,8 @@ h1 {
 h2 {
   margin: 0;
   color: var(--ink);
-  font-size: 24px;
+  font-size: 18px;
+  font-weight: 850;
   line-height: 1.1;
   letter-spacing: 0;
 }
@@ -60,6 +65,6 @@ ul {
 
 @media (max-width: 680px) {
   h1 {
-    font-size: 40px;
+    font-size: 34px;
   }
 }
