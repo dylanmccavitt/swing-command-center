@@ -46,3 +46,12 @@ the browser session. The planner combines those inputs with current market data
 to show position value, cost basis, unrealized P/L, concentration status, and
 manual profit-lock scenario tickets. Scenario tickets are planning aids only and
 do not place trades.
+
+## Cockpit Surface
+
+The first screen is a dense working cockpit: portfolio value, unrealized gain,
+cash/runway target, concentration risk, top manual profit-lock scenarios,
+allocation, and session watchlist movement. Secondary panels keep gains by
+holding, concentration thresholds, manual lots, risk settings, selected
+scenario tickets, and quote freshness visible without brokerage login or order
+execution.
