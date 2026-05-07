@@ -12,6 +12,17 @@ npm install
 npm run dev
 ```
 
+Market data defaults to Alpaca-first auto mode and falls back to mock quotes
+when keys are not configured. Put local Alpaca Market Data keys in `.env.local`
+to enable the Vite dev proxy:
+
+```bash
+VITE_MARKET_DATA_MODE=auto
+VITE_ALPACA_MARKET_DATA_FEED=iex
+ALPACA_MARKET_DATA_API_KEY_ID=...
+ALPACA_MARKET_DATA_SECRET_KEY=...
+```
+
 ## Check
 
 ```bash

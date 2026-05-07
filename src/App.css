@@ -7,6 +7,7 @@
 }
 
 .overview-panel,
+.market-panel,
 .workspace-grid,
 .guardrail-band {
   border: 1px solid var(--line);
@@ -44,7 +45,7 @@
 
 .status-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -69,11 +70,87 @@ dt {
 
 .metric-tile strong {
   color: var(--ink);
-  font-size: 34px;
+  font-size: clamp(24px, 2.5vw, 34px);
   line-height: 1;
 }
 
 .metric-tile span:last-child {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.market-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 28px;
+}
+
+.feed-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.source-pill {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--ink);
+  font-weight: 800;
+  padding: 6px 10px;
+}
+
+.source-pill.live {
+  border-color: rgba(23, 143, 98, 0.35);
+  background: rgba(23, 143, 98, 0.1);
+  color: var(--green);
+}
+
+.source-pill.fallback,
+.source-pill.mock,
+.source-pill.loading {
+  border-color: rgba(168, 108, 8, 0.32);
+  background: rgba(168, 108, 8, 0.1);
+  color: var(--amber);
+}
+
+.market-warning {
+  border-left: 4px solid var(--amber);
+  background: #ffffff;
+  color: var(--ink);
+  padding: 10px 12px;
+}
+
+.quote-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.quote-card {
+  display: flex;
+  min-height: 258px;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 16px;
+}
+
+.quote-card h3 {
+  margin: 12px 0 2px;
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.quote-card p {
   color: var(--muted);
   font-size: 14px;
 }
@@ -181,6 +258,7 @@ dd {
     grid-template-columns: 1fr;
   }
 
+  .quote-grid,
   .holding-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -201,11 +279,13 @@ dd {
   }
 
   .overview-panel,
+  .market-panel,
   .workspace-grid,
   .guardrail-band {
     padding: 18px;
   }
 
+  .quote-grid,
   .holding-grid {
     grid-template-columns: 1fr;
   }
