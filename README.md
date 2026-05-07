@@ -60,3 +60,9 @@ allocation, and session watchlist movement. Secondary panels keep gains by
 holding, concentration thresholds, manual lots, risk settings, selected
 scenario tickets, and quote freshness visible without brokerage login or order
 execution.
+
+The AI-stack research desk groups current holdings and editable placeholder
+candidates by hyperscalers, GPU/chip designers, foundries, memory,
+semiconductor equipment, EDA/IP, networking, power/cooling, data centers, and
+energy. Research cards and trade setup fields are manual checklist inputs; the
+score only measures filled fields and is not a recommendation engine.

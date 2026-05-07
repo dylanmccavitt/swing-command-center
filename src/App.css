@@ -169,7 +169,9 @@
 .metric-label,
 dt,
 .lot-row label span,
-.setting-control > span {
+.setting-control > span,
+.field-control > span,
+.setup-heading span {
   color: var(--muted);
   font-size: 11px;
   font-weight: 800;
@@ -557,6 +559,173 @@ dd {
   gap: 16px;
 }
 
+.research-workbench {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.35fr) minmax(280px, 0.85fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.layer-stack,
+.research-card-editor,
+.candidate-filter-desk,
+.candidate-score-list {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.layer-row {
+  display: grid;
+  gap: 7px;
+  border-top: 1px solid var(--line);
+  padding-top: 9px;
+}
+
+.layer-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.layer-row-heading,
+.research-card-topline,
+.setup-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.layer-row-heading strong,
+.research-card-topline strong,
+.setup-heading strong {
+  color: var(--ink);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.layer-row-heading span,
+.research-card-topline span,
+.setup-heading span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.layer-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.layer-chip-list button {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) max-content;
+  gap: 6px;
+  align-items: center;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 850;
+  min-height: 28px;
+  padding: 5px 7px;
+}
+
+.layer-chip-list button small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.layer-chip-list button:hover,
+.layer-chip-list button.is-selected,
+.candidate-score-list button:hover,
+.candidate-score-list button.is-selected {
+  border-color: rgba(36, 107, 87, 0.45);
+  background: rgba(36, 107, 87, 0.08);
+}
+
+.research-card-topline {
+  align-items: stretch;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  padding: 10px;
+}
+
+.research-card-topline > div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.score-meter {
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+  min-width: 120px;
+}
+
+.score-meter > span {
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.score-meter > div {
+  width: 100%;
+  height: 8px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+}
+
+.score-meter > div span {
+  display: block;
+  width: var(--score-width);
+  height: 100%;
+  background: var(--accent);
+}
+
+.score-meter small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.research-fields,
+.compact-field-grid,
+.setup-grid,
+.filter-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.research-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.compact-field-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.setup-block {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.setup-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.filter-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .workbench-grid {
   display: grid;
   grid-template-columns: minmax(0, 0.95fr) minmax(0, 0.85fr);
@@ -599,14 +768,16 @@ dd {
 }
 
 .lot-row label,
-.setting-control {
+.setting-control,
+.field-control {
   display: grid;
   gap: 6px;
   min-width: 0;
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   min-width: 0;
   border: 1px solid var(--line);
@@ -620,6 +791,11 @@ select {
   padding: 8px 9px;
 }
 
+textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
 input:disabled {
   color: var(--muted);
   cursor: not-allowed;
@@ -628,6 +804,7 @@ input:disabled {
 
 input:focus,
 select:focus,
+textarea:focus,
 button:focus-visible {
   outline: 2px solid rgba(36, 107, 87, 0.35);
   outline-offset: 1px;
@@ -674,6 +851,58 @@ button:focus-visible {
   border-left: 3px solid var(--accent);
   background: var(--soft);
   padding: 8px 9px;
+}
+
+.field-control {
+  align-content: start;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  padding: 9px;
+}
+
+.candidate-score-list button {
+  display: grid;
+  width: 100%;
+  min-height: 58px;
+  grid-template-columns: 46px minmax(0, 1fr) max-content;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  padding: 8px;
+  text-align: left;
+}
+
+.candidate-score {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.candidate-score-list strong,
+.candidate-score-list small {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.candidate-score-list strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.candidate-score-list small {
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .ticket-grid {
@@ -812,6 +1041,7 @@ dd {
 @media (max-width: 1180px) {
   .command-header,
   .first-screen-grid,
+  .research-workbench,
   .chart-deck,
   .workbench-grid {
     grid-template-columns: 1fr;
@@ -847,6 +1077,10 @@ dd {
   }
 
   .primary-metrics,
+  .research-fields,
+  .compact-field-grid,
+  .setup-grid,
+  .filter-grid,
   .settings-grid,
   .planner-controls,
   .ticket-grid {
@@ -865,7 +1099,9 @@ dd {
 
   .state-banner,
   .panel-heading,
+  .research-card-topline,
   .scenario-list button,
+  .candidate-score-list button,
   .chart-row,
   .gain-row,
   .concentration-row,
@@ -877,10 +1113,16 @@ dd {
 
   .panel-value,
   .scenario-cash,
+  .score-meter,
   .movement-value {
     justify-self: start;
     max-width: 100%;
     text-align: left;
+  }
+
+  .score-meter {
+    justify-items: start;
+    width: 100%;
   }
 
   .chart-row span,

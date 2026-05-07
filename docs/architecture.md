@@ -5,9 +5,10 @@
 Swing Command Center is a local Vite, React, and TypeScript frontend app. It
 renders a dense portfolio cockpit shell from static seed holding metadata,
 accepts manual local lot inputs in the browser session, polls a replaceable
-market-data provider for holdings and research watchlist symbols, and turns
+market-data provider for holdings and research watchlist symbols, turns
 complete positions into concentration status, chart rows, and manual
-profit-lock scenario tickets.
+profit-lock scenario tickets, and keeps an editable AI-stack research watchlist
+for thesis-first trade setup tracking.
 
 ## Major Components
 
@@ -15,8 +16,8 @@ profit-lock scenario tickets.
   manual lot inputs, settings controls, and market-data state surfaces.
 - `src/data/seedHoldings.ts`: known current holding symbols and lightweight
   metadata for AAPL, GOOG, NVDA, and IREN.
-- `src/data/seedWatchlist.ts`: small AI/semiconductor/data-center research
-  watchlist symbols used by the market-data feed.
+- `src/data/seedWatchlist.ts`: AI-stack layer definitions plus editable seed
+  research cards for current holdings and placeholder candidates.
 - `src/lib/marketData.ts`: market-data provider boundary, Alpaca quote
   normalization, stale/freshness labeling, and mock fallback data.
 - `src/lib/portfolio.ts`: typed portfolio model, settings normalization,
@@ -27,6 +28,9 @@ profit-lock scenario tickets.
 - `src/lib/cockpit.ts`: first-screen derived summaries, top profit-lock
   scenario ranking, allocation/gain/concentration chart rows, and symbol color
   mapping.
+- `src/lib/researchWatchlist.ts`: manual research-card grouping, checklist
+  scoring, and filtering helpers. Scores are field-completeness checks, not
+  expected-return or recommendation scores.
 - `vite.config.ts`: Vite/Vitest config plus the local dev proxy that injects
   Alpaca Market Data headers from local environment variables.
 - `docs/handoffs/`: resume state for active or recently completed issue work.
@@ -50,6 +54,10 @@ profit-lock scenario tickets.
   tax reserves and trade plans are estimates/helpers, not financial advice.
 - Scenario boundary: profit-lock outputs are manual scenario tickets. The app
   must not present them as certain buy/sell recommendations or execute them.
+- Research boundary: AI-stack candidate scores only measure whether user-editable
+  thesis/setup fields are filled. They must not be framed as an AI model,
+  guaranteed recommendation, ranking of expected returns, or automated trade
+  signal.
 
 ## Main Flows
 
@@ -69,7 +77,10 @@ profit-lock scenario tickets.
    session price/watchlist movement from typed derived rows.
 8. Profit-lock helpers turn a complete selected position into scenario tickets
    for target-weight trims, gain locks, cost-basis recovery, and cash raising.
-9. Tests verify that the seed list remains limited to the known symbols, does
+9. Research watchlist helpers group current holdings and placeholder candidates
+   by AI-stack layer, calculate manual checklist completeness, and filter the
+   candidate list by layer, score, holding status, and missing inputs.
+10. Tests verify that the seed list remains limited to the known symbols, does
    not invent lot data, and that portfolio/profit-lock/cockpit math remains
    stable.
 
@@ -85,6 +96,12 @@ profit-lock scenario tickets.
   unless the user edits the session settings.
 - Tax reserve is an editable estimate bucket for planning, not tax advice or a
   filing calculation.
+- AI-stack research layers are hyperscalers, GPU/chip designers, foundries,
+  memory, semiconductor equipment, EDA/IP, networking, power/cooling, data
+  centers, and energy.
+- Research card and trade setup data stays manually editable in the browser
+  session; source-controlled seeds must not be presented as guaranteed
+  recommendations.
 - UI state must clearly show loading, empty, stale-data, and error/fallback
   market conditions without inventing brokerage holdings or trade history.
 - Issue work should preserve one issue, one branch, one worktree, one thread.
