@@ -52,6 +52,24 @@ import type {
   TargetStopScenario,
 } from './lib/scenarioPlanner'
 import {
+  buildJournalEntryFromTicket,
+  buildManualJournalEntry,
+  buildManualTradeTicketFromProfitLock,
+  buildManualTradeTicketFromTradeSetup,
+  buildRealizedProfitSummary,
+  buildTaxHelperExport,
+  DEFAULT_PAY_YOURSELF_RULE,
+  normalizePayYourselfRule,
+  TRADE_JOURNAL_DISCLOSURE,
+} from './lib/tradeJournal'
+import type {
+  ManualTradeTicket,
+  PayYourselfRule,
+  RealizedProfitSummary,
+  TradeJournalEntry,
+  TradeJournalEntryStatus,
+} from './lib/tradeJournal'
+import {
   buildResearchCandidateScores,
   filterResearchCandidateScores,
   groupResearchCardsByLayer,
@@ -122,6 +140,18 @@ type ScenarioPlannerFormMap = Record<
   string,
   Partial<ScenarioPlannerForm>
 >
+
+type PayYourselfForm = {
+  enabled: boolean
+  percentOfNetAfterReserve: string
+}
+
+type JournalEntryEditableField =
+  | 'realizedProfitLoss'
+  | 'taxReserveEstimate'
+  | 'payYourselfAmount'
+  | 'notes'
+  | 'taxPrepNotes'
 
 type ResearchRunStatus =
   | 'idle'
@@ -195,6 +225,13 @@ const DEFAULT_SCENARIO_PLANNER_FORM: ScenarioPlannerForm = {
   timeHorizon: '2-4 weeks',
 }
 
+const DEFAULT_PAY_YOURSELF_FORM: PayYourselfForm = {
+  enabled: DEFAULT_PAY_YOURSELF_RULE.enabled,
+  percentOfNetAfterReserve: String(
+    DEFAULT_PAY_YOURSELF_RULE.percentOfNetAfterReserve,
+  ),
+}
+
 const IDLE_RESEARCH_RUN: ResearchRunRecord = {
   status: 'idle',
   updatedAt: null,
@@ -264,6 +301,9 @@ function App() {
     useState<ScenarioPlannerFormMap>({})
   const [researchRuns, setResearchRuns] = useState<ResearchRunMap>({})
   const [codexQueue, setCodexQueue] = useState<CodexQueueMap>({})
+  const [payYourselfForm, setPayYourselfForm] =
+    useState<PayYourselfForm>(DEFAULT_PAY_YOURSELF_FORM)
+  const [journalEntries, setJournalEntries] = useState<TradeJournalEntry[]>([])
   const researchProvider = useMemo(
     () => createCuratedResearchProvider({ cards: seedWatchlist }),
     [],
@@ -417,6 +457,49 @@ function App() {
       cashTargetAmount,
     ],
   )
+  const payYourselfRule = useMemo(
+    () =>
+      parsePayYourselfForm({
+        enabled: payYourselfForm.enabled,
+        percentOfNetAfterReserve: payYourselfForm.percentOfNetAfterReserve,
+      }),
+    [payYourselfForm],
+  )
+  const manualTradeTickets = useMemo(() => {
+    if (!selectedPlannerCard) {
+      return []
+    }
+
+    const invalidation =
+      selectedPlannerCard.tradeSetup.invalidation ||
+      selectedPlannerCard.research.invalidation
+
+    return [
+      ...profitLockTickets.map((ticket) =>
+        buildManualTradeTicketFromProfitLock({
+          symbol: selectedPlannerSymbol,
+          name: selectedPlannerCard.name,
+          ticket,
+          invalidation,
+        }),
+      ),
+      buildManualTradeTicketFromTradeSetup({
+        card: selectedPlannerCard,
+        scenario: targetStopScenario,
+        settings: portfolioModel.settings,
+      }),
+    ]
+  }, [
+    portfolioModel.settings,
+    profitLockTickets,
+    selectedPlannerCard,
+    selectedPlannerSymbol,
+    targetStopScenario,
+  ])
+  const realizedProfitSummary = useMemo(
+    () => buildRealizedProfitSummary(journalEntries, payYourselfRule),
+    [journalEntries, payYourselfRule],
+  )
   const concentrationSummary = useMemo(
     () => summarizeConcentrationRisk(portfolioModel),
     [portfolioModel],
@@ -532,6 +615,104 @@ function App() {
         [field]: value,
       },
     }))
+  }
+
+  function updatePayYourselfRule(
+    field: keyof PayYourselfForm,
+    value: string | boolean,
+  ) {
+    setPayYourselfForm((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  function addJournalEntryFromTicket(
+    ticket: ManualTradeTicket,
+    status: TradeJournalEntryStatus,
+  ) {
+    const createdAt = new Date().toISOString()
+
+    setJournalEntries((current) => [
+      buildJournalEntryFromTicket(
+        ticket,
+        {
+          createdAt,
+          status,
+        },
+        payYourselfRule,
+      ),
+      ...current,
+    ])
+  }
+
+  function addManualMistakeEntry() {
+    const createdAt = new Date().toISOString()
+    const selectedLabel = selectedPlannerCard
+      ? selectedPlannerCard.name
+      : selectedPlannerSymbol
+
+    setJournalEntries((current) => [
+      buildManualJournalEntry({
+        id: `${selectedPlannerSymbol}-manual-mistake-${createdAt.replace(
+          /\D/g,
+          '',
+        )}`,
+        createdAt,
+        symbol: selectedPlannerSymbol,
+        name: selectedLabel,
+        status: 'mistake',
+        action: 'Manual mistake review',
+        notes: 'Describe what happened, what rule was missed, and the correction.',
+        taxPrepNotes:
+          'Add actual fill, statement, and lot details if this changed realized P/L.',
+      }),
+      ...current,
+    ])
+  }
+
+  function updateJournalEntry(
+    id: string,
+    field: JournalEntryEditableField,
+    value: string,
+  ) {
+    setJournalEntries((current) =>
+      current.map((entry) => {
+        if (entry.id !== id) {
+          return entry
+        }
+
+        if (
+          field === 'realizedProfitLoss' ||
+          field === 'taxReserveEstimate' ||
+          field === 'payYourselfAmount'
+        ) {
+          return {
+            ...entry,
+            [field]: parseNumericInput(value) ?? 0,
+          }
+        }
+
+        return {
+          ...entry,
+          [field]: value,
+        }
+      }),
+    )
+  }
+
+  function exportTradeJournal() {
+    const generatedAt = new Date().toISOString()
+    const payload = buildTaxHelperExport({
+      entries: journalEntries,
+      generatedAt,
+      payYourselfRule,
+    })
+
+    downloadJsonFile(
+      `swing-command-center-tax-helper-${generatedAt.slice(0, 10)}.json`,
+      JSON.stringify(payload, null, 2),
+    )
   }
 
   async function runResearchForSymbols(symbols: readonly string[]) {
@@ -1082,6 +1263,27 @@ function App() {
             onSelectSymbol={selectPlannerSymbol}
             onUpdateCashTarget={setCashTargetInput}
             onUpdateField={updateScenarioPlannerField}
+          />
+        </section>
+
+        <section className="cockpit-panel journal-panel">
+          <PanelHeading
+            eyebrow="Journal"
+            title="Manual tickets and realized P/L"
+            value={formatSignedCurrency(
+              realizedProfitSummary.netRealizedTradingProfit,
+            )}
+          />
+          <TradeJournalDesk
+            entries={journalEntries}
+            payYourselfForm={payYourselfForm}
+            summary={realizedProfitSummary}
+            tickets={manualTradeTickets}
+            onAddEntry={addJournalEntryFromTicket}
+            onAddMistake={addManualMistakeEntry}
+            onExport={exportTradeJournal}
+            onUpdateEntry={updateJournalEntry}
+            onUpdatePayYourself={updatePayYourselfRule}
           />
         </section>
       </section>
@@ -2362,6 +2564,356 @@ function ProfitLockTicketCard(props: { ticket: ProfitLockTicket }) {
   )
 }
 
+function TradeJournalDesk(props: {
+  tickets: readonly ManualTradeTicket[]
+  entries: readonly TradeJournalEntry[]
+  summary: RealizedProfitSummary
+  payYourselfForm: PayYourselfForm
+  onAddEntry: (
+    ticket: ManualTradeTicket,
+    status: TradeJournalEntryStatus,
+  ) => void
+  onAddMistake: () => void
+  onExport: () => void
+  onUpdateEntry: (
+    id: string,
+    field: JournalEntryEditableField,
+    value: string,
+  ) => void
+  onUpdatePayYourself: (
+    field: keyof PayYourselfForm,
+    value: string | boolean,
+  ) => void
+}) {
+  return (
+    <div className="trade-journal-desk">
+      <p className="state-note">{TRADE_JOURNAL_DISCLOSURE}</p>
+
+      <div className="journal-rule-grid">
+        <label className="setting-control toggle-control">
+          <span>Pay yourself</span>
+          <input
+            checked={props.payYourselfForm.enabled}
+            type="checkbox"
+            onChange={(event) =>
+              props.onUpdatePayYourself('enabled', event.target.checked)
+            }
+          />
+        </label>
+        <NumberSetting
+          disabled={!props.payYourselfForm.enabled}
+          label="After reserve"
+          max="100"
+          min="0"
+          suffix="%"
+          value={props.payYourselfForm.percentOfNetAfterReserve}
+          onChange={(value) =>
+            props.onUpdatePayYourself('percentOfNetAfterReserve', value)
+          }
+        />
+        <div className="journal-actions">
+          <button type="button" onClick={props.onAddMistake}>
+            Log mistake
+          </button>
+          <button
+            disabled={props.entries.length === 0}
+            type="button"
+            onClick={props.onExport}
+          >
+            Export tax-helper JSON
+          </button>
+        </div>
+      </div>
+
+      <JournalSummaryGrid summary={props.summary} />
+
+      <div className="setup-heading">
+        <strong>Manual trade tickets</strong>
+        <span>{props.tickets.length} generated</span>
+      </div>
+      {props.tickets.length === 0 ? (
+        <EmptyState
+          detail="Complete a profit-lock scenario or trade setup before generating local checklist tickets."
+          title="No manual tickets"
+        />
+      ) : (
+        <div className="manual-ticket-grid">
+          {props.tickets.map((ticket) => (
+            <ManualTradeTicketCard
+              key={ticket.id}
+              ticket={ticket}
+              onAddEntry={props.onAddEntry}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="setup-heading">
+        <strong>Journal entries</strong>
+        <span>{props.entries.length} local</span>
+      </div>
+      {props.entries.length === 0 ? (
+        <EmptyState
+          detail="Plan a ticket, log an execution, capture a mistake, or record a result after manual action."
+          title="No journal entries yet"
+        />
+      ) : (
+        <div className="journal-entry-list">
+          {props.entries.map((entry) => (
+            <JournalEntryCard
+              entry={entry}
+              key={entry.id}
+              onUpdate={props.onUpdateEntry}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function JournalSummaryGrid(props: { summary: RealizedProfitSummary }) {
+  const { summary } = props
+
+  return (
+    <div className="journal-summary-grid" aria-label="Realized profit summary">
+      <ScenarioLevel
+        label="Net realized P/L"
+        reason={`${summary.realizedEntryCount} realized entries; planned entries stay out of this math.`}
+        tone={getSignedTone(summary.netRealizedTradingProfit)}
+        value={formatSignedCurrency(summary.netRealizedTradingProfit)}
+      />
+      <ScenarioLevel
+        label="Reserve estimate"
+        reason="Sum of journal reserve estimates for executed, mistake, and result entries."
+        value={formatCurrency(summary.taxReserveEstimate)}
+      />
+      <ScenarioLevel
+        label="After reserve"
+        reason="Net realized trading profit minus the reserve estimate, floored at zero."
+        tone={getSignedTone(summary.profitAfterReserve)}
+        value={formatCurrency(summary.profitAfterReserve)}
+      />
+      <ScenarioLevel
+        label="Pay-yourself"
+        reason={`${formatCurrency(
+          summary.loggedPayYourselfAmount,
+        )} logged; ${formatCurrency(summary.remainingPayYourselfAmount)} remaining from rule.`}
+        value={formatCurrency(summary.recommendedPayYourselfAmount)}
+      />
+      <ScenarioLevel
+        label="Tax prep notes"
+        reason={`${summary.taxPrepEntryCount} entries include notes for a tax-helper review.`}
+        value={`${summary.taxPrepEntryCount}/${summary.entryCount}`}
+      />
+    </div>
+  )
+}
+
+function ManualTradeTicketCard(props: {
+  ticket: ManualTradeTicket
+  onAddEntry: (
+    ticket: ManualTradeTicket,
+    status: TradeJournalEntryStatus,
+  ) => void
+}) {
+  const { ticket } = props
+  const canLogRealized = ticket.status === 'ready'
+
+  return (
+    <article className={`manual-ticket-card ${ticket.status}`}>
+      <div className="ticket-topline">
+        <span className={`ticket-state ${ticket.status}`}>
+          {ticket.status === 'ready' ? 'Checklist ready' : 'Needs input'}
+        </span>
+        <strong>
+          {ticket.symbol} · {ticket.action}
+        </strong>
+      </div>
+
+      <dl>
+        <div>
+          <dt>Action</dt>
+          <dd>{ticket.action}</dd>
+        </div>
+        <div>
+          <dt>Shares</dt>
+          <dd>{formatShares(ticket.estimatedShares)}</dd>
+        </div>
+        <div>
+          <dt>Raised</dt>
+          <dd>{formatCurrency(ticket.estimatedCashRaised)}</dd>
+        </div>
+        <div>
+          <dt>Spent</dt>
+          <dd>{formatCurrency(ticket.estimatedCashSpent)}</dd>
+        </div>
+        <div>
+          <dt>Realized</dt>
+          <dd>{formatSignedCurrency(ticket.estimatedRealizedGain)}</dd>
+        </div>
+        <div>
+          <dt>Reserve</dt>
+          <dd>{formatCurrency(ticket.taxReserveEstimate)}</dd>
+        </div>
+      </dl>
+
+      <div className="ticket-copy">
+        <p>
+          <strong>Reason</strong>
+          <span>{ticket.reason}</span>
+        </p>
+        <p>
+          <strong>Invalidation</strong>
+          <span>{ticket.invalidation}</span>
+        </p>
+      </div>
+
+      <ul className="ticket-checklist">
+        {ticket.checklist.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+
+      <div className="ticket-actions">
+        <button
+          type="button"
+          onClick={() => props.onAddEntry(ticket, 'planned')}
+        >
+          Plan
+        </button>
+        <button
+          disabled={!canLogRealized}
+          type="button"
+          onClick={() => props.onAddEntry(ticket, 'executed')}
+        >
+          Executed
+        </button>
+        <button
+          type="button"
+          onClick={() => props.onAddEntry(ticket, 'mistake')}
+        >
+          Mistake
+        </button>
+        <button
+          disabled={!canLogRealized}
+          type="button"
+          onClick={() => props.onAddEntry(ticket, 'result')}
+        >
+          Result
+        </button>
+      </div>
+    </article>
+  )
+}
+
+function JournalEntryCard(props: {
+  entry: TradeJournalEntry
+  onUpdate: (
+    id: string,
+    field: JournalEntryEditableField,
+    value: string,
+  ) => void
+}) {
+  const { entry } = props
+
+  return (
+    <article className={`journal-entry-card ${entry.status}`}>
+      <div className="journal-entry-topline">
+        <div>
+          <span className={`ticket-state ${entry.status}`}>
+            {getJournalStatusLabel(entry.status)}
+          </span>
+          <strong>
+            {entry.symbol} · {entry.action}
+          </strong>
+          <time>{formatDateTime(entry.createdAt)}</time>
+        </div>
+        <span className="mono">
+          {formatSignedCurrency(entry.realizedProfitLoss)}
+        </span>
+      </div>
+
+      <div className="journal-entry-metrics">
+        <ScenarioLevel
+          label="Shares"
+          reason={entry.ticketId ?? 'Manual entry'}
+          value={formatShares(entry.shares)}
+        />
+        <ScenarioLevel
+          label="Cash raised"
+          reason="Estimated or actual cash raised from the journal row."
+          value={formatCurrency(entry.cashRaised)}
+        />
+        <ScenarioLevel
+          label="Cash spent"
+          reason="Estimated or actual cash spent from the journal row."
+          value={formatCurrency(entry.cashSpent)}
+        />
+      </div>
+
+      <div className="journal-edit-grid">
+        <NumberEntryField
+          label="Realized P/L"
+          value={formatEditableNumber(entry.realizedProfitLoss)}
+          onChange={(value) =>
+            props.onUpdate(entry.id, 'realizedProfitLoss', value)
+          }
+        />
+        <NumberEntryField
+          label="Reserve"
+          min="0"
+          value={formatEditableNumber(entry.taxReserveEstimate)}
+          onChange={(value) =>
+            props.onUpdate(entry.id, 'taxReserveEstimate', value)
+          }
+        />
+        <NumberEntryField
+          label="Pay-yourself"
+          min="0"
+          value={formatEditableNumber(entry.payYourselfAmount)}
+          onChange={(value) =>
+            props.onUpdate(entry.id, 'payYourselfAmount', value)
+          }
+        />
+      </div>
+
+      <div className="research-fields">
+        <TextAreaField
+          label="Journal notes"
+          value={entry.notes}
+          onChange={(value) => props.onUpdate(entry.id, 'notes', value)}
+        />
+        <TextAreaField
+          label="Tax prep notes"
+          value={entry.taxPrepNotes}
+          onChange={(value) => props.onUpdate(entry.id, 'taxPrepNotes', value)}
+        />
+      </div>
+    </article>
+  )
+}
+
+function NumberEntryField(props: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  min?: string
+}) {
+  return (
+    <label className="field-control">
+      <span>{props.label}</span>
+      <input
+        min={props.min}
+        step="0.01"
+        type="number"
+        value={props.value}
+        onChange={(event) => props.onChange(event.target.value)}
+      />
+    </label>
+  )
+}
+
 function QuoteTable(props: {
   symbols: readonly string[]
   quotesBySymbol: Map<string, MarketQuote>
@@ -2831,6 +3383,19 @@ function getScenarioPlannerStatusLabel(
   }
 }
 
+function getJournalStatusLabel(status: TradeJournalEntryStatus): string {
+  switch (status) {
+    case 'planned':
+      return 'Planned'
+    case 'executed':
+      return 'Executed'
+    case 'mistake':
+      return 'Mistake'
+    case 'result':
+      return 'Result'
+  }
+}
+
 function parseSettingsForm(form: SettingsForm): Partial<PortfolioSettings> {
   return {
     maxPositionWeightPercent:
@@ -2850,6 +3415,15 @@ function parseSettingsForm(form: SettingsForm): Partial<PortfolioSettings> {
       parseNumericInput(form.activeTradingSleeveDollars) ??
       DEFAULT_PORTFOLIO_SETTINGS.activeTradingSleeveDollars,
   }
+}
+
+function parsePayYourselfForm(form: PayYourselfForm): PayYourselfRule {
+  return normalizePayYourselfRule({
+    enabled: form.enabled,
+    percentOfNetAfterReserve:
+      parseNumericInput(form.percentOfNetAfterReserve) ??
+      DEFAULT_PAY_YOURSELF_RULE.percentOfNetAfterReserve,
+  })
 }
 
 function parseNumericInput(value: string | undefined): number | null {

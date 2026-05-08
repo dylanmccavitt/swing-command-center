@@ -11,7 +11,10 @@ profit-lock scenario tickets, and keeps an editable AI-stack research watchlist
 for thesis-first trade setup tracking. A target/stop scenario planner combines
 selected holdings or research cards with editable price, risk, trim, support,
 and time-horizon inputs to draft manual planning levels with calculation
-reasons. The research desk can run a typed
+reasons. Manual trade-ticket and journal helpers convert profit-lock scenarios
+and trade setups into local checklist tickets, browser-session journal rows,
+realized P/L summaries, configurable pay-yourself estimates, and exportable
+tax-helper review JSON. The research desk can run a typed
 research-provider flow for one symbol or the selected AI-stack layer, then
 draft editable research fields with visible source URLs, timestamps, and review
 state. It can also queue a local Codex/ChatGPT research request JSON and import
@@ -36,6 +39,8 @@ AI-drafted / Needs review.
 - `src/lib/scenarioPlanner.ts`: manual target/stop scenario calculator for
   planned entry, stop level, stop-limit buffer, first target, stretch target,
   trim size, proceeds, gain/loss, and remaining position.
+- `src/lib/tradeJournal.ts`: manual trade-ticket, journal-entry, realized P/L
+  summary, pay-yourself, and tax-helper export helpers.
 - `src/lib/cockpit.ts`: first-screen derived summaries, top profit-lock
   scenario ranking, allocation/gain/concentration chart rows, and symbol color
   mapping.
@@ -77,6 +82,12 @@ AI-drafted / Needs review.
   planner can explain levels from risk budgets, R multiples, gain percents,
   and manual reference prices, but it must not guarantee a result, recommend a
   buy/sell action, create an order ticket, or automate execution.
+- Trade journal boundary: generated tickets and journal entries are manual
+  checklists and browser-session records only. They may estimate cash raised or
+  spent, realized P/L, reserve buckets, pay-yourself amounts, and tax-helper
+  export fields, but they must not store credentials, connect to Robinhood,
+  execute orders, automate trading, or present export JSON as a tax filing
+  document or tax advice.
 - Research boundary: AI-stack candidate scores only measure whether user-editable
   thesis/setup fields are filled. They must not be framed as an AI model,
   guaranteed recommendation, ranking of expected returns, or automated trade
@@ -114,26 +125,37 @@ AI-drafted / Needs review.
    card plus editable inputs into planned entry, stop, stop-limit buffer, first
    target, stretch target, trim, proceeds, gain/loss, and remaining-position
    outputs with explicit reasons and guardrails.
-10. Research watchlist helpers group current holdings and placeholder candidates
+10. Trade-journal helpers convert selected profit-lock scenarios and trade
+    setups into manual checklist tickets with symbol, action, estimated shares,
+    estimated cash raised or spent, estimated realized gain, tax reserve,
+    reason, invalidation, and checklist copy.
+11. The user can add local journal entries for planned, executed, mistake, and
+    result states; edit realized P/L, reserve, pay-yourself, notes, and tax-prep
+    notes; review the realized-profit summary; and export JSON for a tax-helper
+    review.
+12. Research watchlist helpers group current holdings and placeholder candidates
    by AI-stack layer, calculate manual checklist completeness, and filter the
    candidate list by layer, score, holding status, and missing inputs.
-11. The user can run research for the selected symbol or selected layer. The
+13. The user can run research for the selected symbol or selected layer. The
     research provider returns recent-news, investor, filing, earnings, and
     sector-context source metadata; the app drafts thesis, catalyst,
     invalidation, risk notes, review date, and source notes into the editable
     card.
-12. The user can queue a Codex research request for the selected symbol. The app
+14. The user can queue a Codex research request for the selected symbol. The app
     creates a structured request JSON for manual worker processing, then can
     import a local result JSON only after schema, symbol/request, source
     metadata, and non-recommendation validation pass.
-13. Tests verify that the seed list remains limited to the known symbols, does
+15. Tests verify that the seed list remains limited to the known symbols, does
     not invent lot data, and that portfolio/profit-lock/cockpit math remains
     stable. Research-provider tests cover source metadata, stale/empty states,
     draft normalization, and non-recommendation copy. Codex queue tests cover
     request payloads, result validation, source metadata, ignored generated
     artifacts, and non-recommendation copy. Scenario-planner tests cover
     target/stop math, stop-limit buffers, missing-input states, invalid
-    long-position stops, and non-recommendation copy.
+    long-position stops, and non-recommendation copy. Trade-journal tests cover
+    ticket generation, journal statuses and math, realized-profit summaries,
+    pay-yourself rules, tax-helper export shape, and non-automation /
+    non-tax-advice copy.
 
 ## Important Invariants
 
@@ -150,6 +172,13 @@ AI-drafted / Needs review.
 - Target/stop planning levels require user-reviewable inputs and must surface
   missing cost basis, stale or missing market data, invalid risk/reward, and
   stops above planned entry for long positions.
+- Manual trade tickets and journal rows are local browser-session checklists.
+  They must include reviewable reasons and invalidation, must keep planned
+  entries out of realized P/L math, and must not claim broker execution.
+- Pay-yourself estimates default to a small percentage of net realized trading
+  profit after reserve and remain configurable.
+- Tax-helper exports are planning review JSON only, not filing documents or tax
+  advice.
 - AI-stack research layers are hyperscalers, GPU/chip designers, foundries,
   memory, semiconductor equipment, EDA/IP, networking, power/cooling, data
   centers, and energy.

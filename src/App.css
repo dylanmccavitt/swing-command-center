@@ -933,7 +933,8 @@ dd {
   gap: 16px;
 }
 
-.planner-panel {
+.planner-panel,
+.journal-panel {
   grid-column: 1 / -1;
 }
 
@@ -1019,7 +1020,9 @@ button:focus-visible {
 }
 
 .target-planner,
-.profit-ticket-section {
+.profit-ticket-section,
+.trade-journal-desk,
+.journal-entry-list {
   display: grid;
   gap: 12px;
   min-width: 0;
@@ -1274,19 +1277,42 @@ button:focus-visible {
   font-size: 11px;
 }
 
-.ticket-grid {
+.ticket-grid,
+.manual-ticket-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
-.ticket-row {
+.journal-rule-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 0.7fr) minmax(220px, 1fr);
+  gap: 8px;
+}
+
+.journal-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ticket-row,
+.manual-ticket-card,
+.journal-entry-card {
   display: grid;
   gap: 10px;
   min-width: 0;
   border: 1px solid var(--line);
   background: var(--surface);
   padding: 10px;
+}
+
+.manual-ticket-card.needs_input {
+  border-color: rgba(165, 111, 26, 0.35);
+}
+
+.journal-entry-card.mistake {
+  border-color: rgba(174, 61, 52, 0.35);
 }
 
 .ticket-topline {
@@ -1313,10 +1339,27 @@ button:focus-visible {
 }
 
 .ticket-state.ready,
+.ticket-state.executed,
+.ticket-state.result,
 .risk-chip.within_rules {
   border-color: rgba(36, 107, 87, 0.35);
   background: rgba(36, 107, 87, 0.08);
   color: var(--accent);
+}
+
+.ticket-state.needs_input,
+.ticket-state.planned,
+.ticket-state.missing_input {
+  border-color: rgba(165, 111, 26, 0.35);
+  background: rgba(165, 111, 26, 0.1);
+  color: var(--amber);
+}
+
+.ticket-state.mistake,
+.ticket-state.invalid {
+  border-color: rgba(174, 61, 52, 0.35);
+  background: rgba(174, 61, 52, 0.1);
+  color: var(--red);
 }
 
 .risk-chip.alert {
@@ -1336,6 +1379,122 @@ button:focus-visible {
   font-size: 12px;
   line-height: 1.4;
   margin: 0;
+}
+
+.ticket-copy {
+  display: grid;
+  gap: 7px;
+}
+
+.ticket-copy p {
+  display: grid;
+  gap: 3px;
+}
+
+.ticket-copy strong {
+  color: var(--ink);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.ticket-copy span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.ticket-checklist {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 16px;
+}
+
+.ticket-checklist li {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.ticket-actions,
+.journal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ticket-actions button,
+.journal-actions button {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  padding: 7px 10px;
+}
+
+.ticket-actions button:hover:not(:disabled),
+.journal-actions button:hover:not(:disabled) {
+  border-color: rgba(36, 107, 87, 0.45);
+  background: rgba(36, 107, 87, 0.08);
+}
+
+.ticket-actions button:disabled,
+.journal-actions button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.journal-actions {
+  align-content: space-between;
+  align-items: end;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  padding: 10px;
+}
+
+.journal-entry-topline {
+  display: flex;
+  min-width: 0;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.journal-entry-topline > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.journal-entry-topline strong,
+.journal-entry-topline time {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.journal-entry-topline strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.journal-entry-topline time {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.journal-entry-metrics,
+.journal-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
 }
 
 dl {
@@ -1435,7 +1594,11 @@ dd {
 
   .target-planner .planner-controls,
   .planner-input-grid,
-  .level-output-grid {
+  .level-output-grid,
+  .journal-rule-grid,
+  .journal-summary-grid,
+  .journal-entry-metrics,
+  .journal-edit-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -1460,7 +1623,12 @@ dd {
   .planner-controls,
   .planner-input-grid,
   .level-output-grid,
-  .ticket-grid {
+  .ticket-grid,
+  .manual-ticket-grid,
+  .journal-rule-grid,
+  .journal-summary-grid,
+  .journal-entry-metrics,
+  .journal-edit-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1478,6 +1646,7 @@ dd {
   .panel-heading,
   .research-card-topline,
   .scenario-plan-topline,
+  .journal-entry-topline,
   .scenario-list button,
   .candidate-score-list button,
   .chart-row,
