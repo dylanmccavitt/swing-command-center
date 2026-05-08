@@ -1037,7 +1037,9 @@ button:focus-visible {
 .target-planner,
 .profit-ticket-section,
 .trade-journal-desk,
-.journal-entry-list {
+.journal-entry-list,
+.sell-fill-workflow,
+.sell-fill-list {
   display: grid;
   gap: 12px;
   min-width: 0;
@@ -1311,6 +1313,34 @@ button:focus-visible {
   gap: 8px;
 }
 
+.sell-fill-form {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.sell-fill-form .field-control:has(textarea) {
+  grid-column: span 2;
+}
+
+.buying-power-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.sell-fill-import-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(260px, 0.7fr);
+  gap: 8px;
+}
+
+.buying-power-summary {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .profit-cash-plan {
   display: grid;
   gap: 10px;
@@ -1334,7 +1364,8 @@ button:focus-visible {
 .ticket-row,
 .manual-ticket-card,
 .journal-entry-card,
-.profit-cash-card {
+.profit-cash-card,
+.sell-fill-card {
   display: grid;
   gap: 10px;
   min-width: 0;
@@ -1348,6 +1379,15 @@ button:focus-visible {
 }
 
 .journal-entry-card.mistake {
+  border-color: rgba(174, 61, 52, 0.35);
+}
+
+.sell-fill-card.planned,
+.sell-fill-card.ordered {
+  border-color: rgba(165, 111, 26, 0.35);
+}
+
+.sell-fill-card.canceled {
   border-color: rgba(174, 61, 52, 0.35);
 }
 
@@ -1377,6 +1417,8 @@ button:focus-visible {
 .ticket-state.ready,
 .ticket-state.executed,
 .ticket-state.result,
+.ticket-state.filled,
+.ticket-state.reviewed,
 .risk-chip.within_rules {
   border-color: rgba(36, 107, 87, 0.35);
   background: rgba(36, 107, 87, 0.08);
@@ -1385,6 +1427,7 @@ button:focus-visible {
 
 .ticket-state.needs_input,
 .ticket-state.planned,
+.ticket-state.ordered,
 .ticket-state.missing_input {
   border-color: rgba(165, 111, 26, 0.35);
   background: rgba(165, 111, 26, 0.1);
@@ -1392,6 +1435,7 @@ button:focus-visible {
 }
 
 .ticket-state.mistake,
+.ticket-state.canceled,
 .ticket-state.invalid {
   border-color: rgba(174, 61, 52, 0.35);
   background: rgba(174, 61, 52, 0.1);
@@ -1507,6 +1551,23 @@ button:focus-visible {
   border: 1px solid var(--line);
   background: var(--soft);
   padding: 10px;
+}
+
+.import-message {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.inline-select {
+  display: grid;
+  grid-template-columns: max-content minmax(120px, 1fr);
+  gap: 8px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
 }
 
 .journal-entry-topline {
@@ -1646,6 +1707,8 @@ dd {
   .target-planner .planner-controls,
   .planner-input-grid,
   .level-output-grid,
+  .sell-fill-form,
+  .buying-power-summary,
   .journal-rule-grid,
   .journal-summary-grid,
   .profit-cash-summary,
@@ -1679,6 +1742,10 @@ dd {
   .level-output-grid,
   .ticket-grid,
   .manual-ticket-grid,
+  .sell-fill-form,
+  .buying-power-controls,
+  .sell-fill-import-grid,
+  .buying-power-summary,
   .journal-rule-grid,
   .journal-summary-grid,
   .profit-cash-summary,

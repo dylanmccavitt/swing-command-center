@@ -59,12 +59,24 @@ import type {
   TargetStopScenario,
 } from './lib/scenarioPlanner'
 import {
+  buildBuyingPowerSummary,
+  buildSellFillPlanningExport,
+  buildSellFillRows,
+  parseSellFillImportText,
+  SELL_FILL_DISCLOSURE,
+} from './lib/sellFills'
+import type {
+  BuyingPowerSummary,
+  SellFillRecord,
+  SellFillRow,
+  SellFillStatus,
+} from './lib/sellFills'
+import {
   buildJournalEntryFromTicket,
   buildManualJournalEntry,
   buildManualTradeTicketFromProfitLock,
   buildManualTradeTicketFromTradeSetup,
   buildRealizedProfitSummary,
-  buildTaxHelperExport,
   DEFAULT_PAY_YOURSELF_RULE,
   normalizePayYourselfRule,
   TRADE_JOURNAL_DISCLOSURE,
@@ -161,6 +173,25 @@ type PayYourselfForm = {
   percentOfNetAfterReserve: string
 }
 
+type SellFillForm = {
+  status: SellFillStatus
+  symbol: string
+  sharesSold: string
+  fillPrice: string
+  averageCost: string
+  costBasis: string
+  filledDate: string
+  fees: string
+  source: string
+  reference: string
+  notes: string
+}
+
+type BuyingPowerForm = {
+  startingCash: string
+  manuallyReinvestedCash: string
+}
+
 type SymbolLabel = {
   name: string
   layer: string
@@ -172,6 +203,9 @@ type JournalEntryEditableField =
   | 'payYourselfAmount'
   | 'notes'
   | 'taxPrepNotes'
+
+type SellFillFormField = keyof SellFillForm
+type BuyingPowerFormField = keyof BuyingPowerForm
 
 type ResearchRunStatus =
   | 'idle'
@@ -260,6 +294,25 @@ const DEFAULT_PAY_YOURSELF_FORM: PayYourselfForm = {
   ),
 }
 
+const DEFAULT_SELL_FILL_FORM: SellFillForm = {
+  status: 'filled',
+  symbol: seedWatchlist[0]?.symbol ?? '',
+  sharesSold: '',
+  fillPrice: '',
+  averageCost: '',
+  costBasis: '',
+  filledDate: new Date().toISOString().slice(0, 10),
+  fees: '',
+  source: 'manual entry',
+  reference: '',
+  notes: '',
+}
+
+const DEFAULT_BUYING_POWER_FORM: BuyingPowerForm = {
+  startingCash: '',
+  manuallyReinvestedCash: '',
+}
+
 const IDLE_RESEARCH_RUN: ResearchRunRecord = {
   status: 'idle',
   updatedAt: null,
@@ -336,6 +389,14 @@ function App() {
   const [payYourselfForm, setPayYourselfForm] =
     useState<PayYourselfForm>(DEFAULT_PAY_YOURSELF_FORM)
   const [journalEntries, setJournalEntries] = useState<TradeJournalEntry[]>([])
+  const [sellFills, setSellFills] = useState<SellFillRecord[]>([])
+  const [sellFillForm, setSellFillForm] = useState<SellFillForm>(
+    DEFAULT_SELL_FILL_FORM,
+  )
+  const [sellFillImportText, setSellFillImportText] = useState('')
+  const [sellFillImportMessage, setSellFillImportMessage] = useState('')
+  const [buyingPowerForm, setBuyingPowerForm] =
+    useState<BuyingPowerForm>(DEFAULT_BUYING_POWER_FORM)
   const summary = useMemo(() => buildPortfolioSeedSummary(holdings), [holdings])
   const symbolLabels = useMemo(
     () => buildSymbolLabels(holdings, researchCards),
@@ -545,10 +606,31 @@ function App() {
     () => buildRealizedProfitSummary(journalEntries, payYourselfRule),
     [journalEntries, payYourselfRule],
   )
+  const sellFillRows = useMemo(
+    () =>
+      buildSellFillRows(sellFills, {
+        settings: portfolioModel.settings,
+        payYourselfRule,
+      }),
+    [portfolioModel.settings, payYourselfRule, sellFills],
+  )
+  const buyingPowerSummary = useMemo(
+    () =>
+      buildBuyingPowerSummary({
+        records: sellFills,
+        startingCash: parseNumericInput(buyingPowerForm.startingCash) ?? 0,
+        manuallyReinvestedCash:
+          parseNumericInput(buyingPowerForm.manuallyReinvestedCash) ?? 0,
+        settings: portfolioModel.settings,
+        payYourselfRule,
+      }),
+    [buyingPowerForm, portfolioModel.settings, payYourselfRule, sellFills],
+  )
   const profitCashPlan = useMemo(
     () =>
       buildProfitCashPlan({
         summary: realizedProfitSummary,
+        buyingPower: buyingPowerSummary,
         positions: portfolioModel.positions,
         researchScores,
         quotesBySymbol,
@@ -556,6 +638,7 @@ function App() {
     [
       portfolioModel.positions,
       quotesBySymbol,
+      buyingPowerSummary,
       realizedProfitSummary,
       researchScores,
     ],
@@ -777,6 +860,103 @@ function App() {
     }))
   }
 
+  function updateSellFillForm(field: SellFillFormField, value: string) {
+    setSellFillForm((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  function updateBuyingPowerForm(
+    field: BuyingPowerFormField,
+    value: string,
+  ) {
+    setBuyingPowerForm((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  function addSellFill(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const symbol = normalizeSymbolInput(sellFillForm.symbol)
+
+    if (!symbol) {
+      setSellFillImportMessage('Enter a symbol before adding a sell fill.')
+      return
+    }
+
+    const createdAt = new Date().toISOString()
+    const nextRecord: SellFillRecord = {
+      id: `${symbol.toLowerCase()}-sell-fill-${createdAt.replace(/\D/g, '')}`,
+      status: sellFillForm.status,
+      symbol,
+      sharesSold: parseNumericInput(sellFillForm.sharesSold),
+      fillPrice: parseNumericInput(sellFillForm.fillPrice),
+      averageCost: parseNumericInput(sellFillForm.averageCost),
+      costBasis: parseNumericInput(sellFillForm.costBasis),
+      filledDate: sellFillForm.filledDate,
+      fees: parseNumericInput(sellFillForm.fees) ?? 0,
+      source: sellFillForm.source.trim() || 'manual entry',
+      reference: sellFillForm.reference.trim(),
+      notes: sellFillForm.notes.trim(),
+    }
+
+    setSellFills((current) => [nextRecord, ...current])
+    setSelectedPlannerSymbol(symbol)
+    setSellFillImportMessage(`${symbol} sell fill added locally.`)
+    setSellFillForm({
+      ...DEFAULT_SELL_FILL_FORM,
+      status: sellFillForm.status,
+      symbol,
+      filledDate: sellFillForm.filledDate || DEFAULT_SELL_FILL_FORM.filledDate,
+    })
+  }
+
+  function updateSellFillStatus(id: string, status: SellFillStatus) {
+    setSellFills((current) =>
+      current.map((record) =>
+        record.id === id ? { ...record, status } : record,
+      ),
+    )
+  }
+
+  function removeSellFill(id: string) {
+    setSellFills((current) => current.filter((record) => record.id !== id))
+  }
+
+  function importSellFillsFromText() {
+    const importedAt = new Date().toISOString()
+    const result = parseSellFillImportText(sellFillImportText, importedAt)
+
+    if (result.records.length > 0) {
+      setSellFills((current) => [...result.records, ...current])
+    }
+
+    setSellFillImportMessage(formatSellFillImportMessage(result))
+  }
+
+  async function importSellFillsFromFile(file: File) {
+    try {
+      const text = await file.text()
+      const importedAt = new Date().toISOString()
+      const result = parseSellFillImportText(text, importedAt)
+
+      setSellFillImportText(text)
+
+      if (result.records.length > 0) {
+        setSellFills((current) => [...result.records, ...current])
+      }
+
+      setSellFillImportMessage(formatSellFillImportMessage(result))
+    } catch (error) {
+      setSellFillImportMessage(
+        getErrorMessage(error, 'Local sell-fill file could not be read.'),
+      )
+    }
+  }
+
   function addJournalEntryFromTicket(
     ticket: ManualTradeTicket,
     status: TradeJournalEntryStatus,
@@ -853,14 +1033,16 @@ function App() {
 
   function exportTradeJournal() {
     const generatedAt = new Date().toISOString()
-    const payload = buildTaxHelperExport({
-      entries: journalEntries,
+    const payload = buildSellFillPlanningExport({
+      records: sellFills,
+      buyingPower: buyingPowerSummary,
       generatedAt,
+      settings: portfolioModel.settings,
       payYourselfRule,
     })
 
     downloadJsonFile(
-      `swing-command-center-tax-review-${generatedAt.slice(0, 10)}.json`,
+      `swing-command-center-sell-fill-plan-${generatedAt.slice(0, 10)}.json`,
       JSON.stringify(payload, null, 2),
     )
   }
@@ -1427,23 +1609,35 @@ function App() {
         <section className="cockpit-panel journal-panel">
           <PanelHeading
             eyebrow="Journal"
-            title="Tickets and realized P/L"
-            value={formatSignedCurrency(
-              realizedProfitSummary.netRealizedTradingProfit,
-            )}
+            title="Sell fills and buying power"
+            value={formatCurrency(buyingPowerSummary.remainingCashAvailable)}
           />
           <TradeJournalDesk
+            buyingPowerForm={buyingPowerForm}
+            buyingPowerSummary={buyingPowerSummary}
             entries={journalEntries}
             payYourselfForm={payYourselfForm}
             profitCashPlan={profitCashPlan}
+            sellFillForm={sellFillForm}
+            sellFillImportMessage={sellFillImportMessage}
+            sellFillImportText={sellFillImportText}
+            sellFillRows={sellFillRows}
             summary={realizedProfitSummary}
             tickets={manualTradeTickets}
             onAddEntry={addJournalEntryFromTicket}
             onAddMistake={addManualMistakeEntry}
+            onAddSellFill={addSellFill}
             onExport={exportTradeJournal}
+            onImportSellFillFile={importSellFillsFromFile}
+            onImportSellFills={importSellFillsFromText}
+            onRemoveSellFill={removeSellFill}
             onSelectSymbol={selectPlannerSymbol}
+            onUpdateBuyingPower={updateBuyingPowerForm}
             onUpdateEntry={updateJournalEntry}
             onUpdatePayYourself={updatePayYourselfRule}
+            onUpdateSellFillForm={updateSellFillForm}
+            onUpdateSellFillImportText={setSellFillImportText}
+            onUpdateSellFillStatus={updateSellFillStatus}
           />
         </section>
       </section>
@@ -2822,15 +3016,29 @@ function TradeJournalDesk(props: {
   tickets: readonly ManualTradeTicket[]
   entries: readonly TradeJournalEntry[]
   summary: RealizedProfitSummary
+  sellFillRows: readonly SellFillRow[]
+  sellFillForm: SellFillForm
+  sellFillImportText: string
+  sellFillImportMessage: string
+  buyingPowerForm: BuyingPowerForm
+  buyingPowerSummary: BuyingPowerSummary
   profitCashPlan: ProfitCashPlan
   payYourselfForm: PayYourselfForm
+  onAddSellFill: (event: FormEvent<HTMLFormElement>) => void
   onAddEntry: (
     ticket: ManualTradeTicket,
     status: TradeJournalEntryStatus,
   ) => void
   onAddMistake: () => void
   onExport: () => void
+  onImportSellFills: () => void
+  onImportSellFillFile: (file: File) => void
+  onRemoveSellFill: (id: string) => void
   onSelectSymbol: (symbol: string) => void
+  onUpdateBuyingPower: (
+    field: BuyingPowerFormField,
+    value: string,
+  ) => void
   onUpdateEntry: (
     id: string,
     field: JournalEntryEditableField,
@@ -2840,10 +3048,29 @@ function TradeJournalDesk(props: {
     field: keyof PayYourselfForm,
     value: string | boolean,
   ) => void
+  onUpdateSellFillForm: (field: SellFillFormField, value: string) => void
+  onUpdateSellFillImportText: (value: string) => void
+  onUpdateSellFillStatus: (id: string, status: SellFillStatus) => void
 }) {
   return (
     <div className="trade-journal-desk">
-      <p className="state-note">{TRADE_JOURNAL_DISCLOSURE}</p>
+      <p className="state-note">{SELL_FILL_DISCLOSURE}</p>
+
+      <SellFillWorkflowPanel
+        buyingPowerForm={props.buyingPowerForm}
+        form={props.sellFillForm}
+        importMessage={props.sellFillImportMessage}
+        importText={props.sellFillImportText}
+        rows={props.sellFillRows}
+        onAddSellFill={props.onAddSellFill}
+        onImportFile={props.onImportSellFillFile}
+        onImportText={props.onImportSellFills}
+        onRemoveSellFill={props.onRemoveSellFill}
+        onUpdateBuyingPower={props.onUpdateBuyingPower}
+        onUpdateForm={props.onUpdateSellFillForm}
+        onUpdateImportText={props.onUpdateSellFillImportText}
+        onUpdateStatus={props.onUpdateSellFillStatus}
+      />
 
       <div className="journal-rule-grid">
         <label className="setting-control toggle-control">
@@ -2872,21 +3099,28 @@ function TradeJournalDesk(props: {
             Log mistake
           </button>
           <button
-            disabled={props.entries.length === 0}
+            disabled={props.sellFillRows.length === 0}
             type="button"
             onClick={props.onExport}
           >
-            Export tax review JSON
+            Export sell-fill plan JSON
           </button>
         </div>
       </div>
 
-      <JournalSummaryGrid summary={props.summary} />
+      <BuyingPowerSummaryGrid summary={props.buyingPowerSummary} />
 
       <ProfitCashPlanPanel
         plan={props.profitCashPlan}
         onSelectSymbol={props.onSelectSymbol}
       />
+
+      <div className="setup-heading">
+        <strong>Checklist journal</strong>
+        <span>{formatSignedCurrency(props.summary.netRealizedTradingProfit)} legacy P/L</span>
+      </div>
+      <p className="state-note">{TRADE_JOURNAL_DISCLOSURE}</p>
+      <JournalSummaryGrid summary={props.summary} />
 
       <div className="setup-heading">
         <strong>Trade checklists</strong>
@@ -2930,6 +3164,338 @@ function TradeJournalDesk(props: {
         </div>
       )}
     </div>
+  )
+}
+
+function SellFillWorkflowPanel(props: {
+  rows: readonly SellFillRow[]
+  form: SellFillForm
+  importText: string
+  importMessage: string
+  buyingPowerForm: BuyingPowerForm
+  onAddSellFill: (event: FormEvent<HTMLFormElement>) => void
+  onImportText: () => void
+  onImportFile: (file: File) => void
+  onRemoveSellFill: (id: string) => void
+  onUpdateForm: (field: SellFillFormField, value: string) => void
+  onUpdateImportText: (value: string) => void
+  onUpdateStatus: (id: string, status: SellFillStatus) => void
+  onUpdateBuyingPower: (
+    field: BuyingPowerFormField,
+    value: string,
+  ) => void
+}) {
+  return (
+    <section className="sell-fill-workflow" aria-label="Sell fill workflow">
+      <div className="setup-heading">
+        <strong>Sell fills</strong>
+        <span>{props.rows.length} local records</span>
+      </div>
+
+      <form className="sell-fill-form" onSubmit={props.onAddSellFill}>
+        <label className="field-control">
+          <span>Status</span>
+          <select
+            value={props.form.status}
+            onChange={(event) =>
+              props.onUpdateForm(
+                'status',
+                event.target.value as SellFillStatus,
+              )
+            }
+          >
+            <option value="planned">Planned</option>
+            <option value="ordered">Ordered</option>
+            <option value="filled">Filled</option>
+            <option value="canceled">Canceled</option>
+            <option value="reviewed">Reviewed</option>
+          </select>
+        </label>
+        <TextField
+          label="Symbol"
+          value={props.form.symbol}
+          onChange={(value) => props.onUpdateForm('symbol', value)}
+        />
+        <NumberSetting
+          label="Shares sold"
+          min="0"
+          value={props.form.sharesSold}
+          onChange={(value) => props.onUpdateForm('sharesSold', value)}
+        />
+        <NumberSetting
+          label="Fill price"
+          min="0"
+          prefix="$"
+          value={props.form.fillPrice}
+          onChange={(value) => props.onUpdateForm('fillPrice', value)}
+        />
+        <NumberSetting
+          label="Average cost"
+          min="0"
+          prefix="$"
+          value={props.form.averageCost}
+          onChange={(value) => props.onUpdateForm('averageCost', value)}
+        />
+        <NumberSetting
+          label="Cost basis"
+          min="0"
+          prefix="$"
+          value={props.form.costBasis}
+          onChange={(value) => props.onUpdateForm('costBasis', value)}
+        />
+        <TextField
+          label="Filled date"
+          type="date"
+          value={props.form.filledDate}
+          onChange={(value) => props.onUpdateForm('filledDate', value)}
+        />
+        <NumberSetting
+          label="Fees"
+          min="0"
+          prefix="$"
+          value={props.form.fees}
+          onChange={(value) => props.onUpdateForm('fees', value)}
+        />
+        <TextField
+          label="Source"
+          value={props.form.source}
+          onChange={(value) => props.onUpdateForm('source', value)}
+        />
+        <TextField
+          label="Reference"
+          value={props.form.reference}
+          onChange={(value) => props.onUpdateForm('reference', value)}
+        />
+        <TextAreaField
+          label="Sell notes"
+          value={props.form.notes}
+          onChange={(value) => props.onUpdateForm('notes', value)}
+        />
+        <button className="form-action-button" type="submit">
+          Add sell fill
+        </button>
+      </form>
+
+      <div className="buying-power-controls">
+        <NumberSetting
+          label="Starting cash"
+          min="0"
+          prefix="$"
+          value={props.buyingPowerForm.startingCash}
+          onChange={(value) => props.onUpdateBuyingPower('startingCash', value)}
+        />
+        <NumberSetting
+          label="Marked reinvested"
+          min="0"
+          prefix="$"
+          value={props.buyingPowerForm.manuallyReinvestedCash}
+          onChange={(value) =>
+            props.onUpdateBuyingPower('manuallyReinvestedCash', value)
+          }
+        />
+      </div>
+
+      <div className="sell-fill-import-grid">
+        <TextAreaField
+          label="Paste local CSV or JSON"
+          value={props.importText}
+          onChange={props.onUpdateImportText}
+        />
+        <div className="journal-actions">
+          <button type="button" onClick={props.onImportText}>
+            Import pasted records
+          </button>
+          <label className="file-button">
+            Read local file
+            <input
+              accept=".csv,.json,application/json,text/csv,text/plain"
+              type="file"
+              onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                const file = event.target.files?.[0]
+
+                if (file) {
+                  props.onImportFile(file)
+                }
+
+                event.target.value = ''
+              }}
+            />
+          </label>
+          {props.importMessage && (
+            <span className="import-message">{props.importMessage}</span>
+          )}
+        </div>
+      </div>
+
+      {props.rows.length === 0 ? (
+        <EmptyState
+          detail="Add a sell manually or import local CSV/JSON. Planned, ordered, and canceled rows stay out of realized math."
+          title="No sell fills yet"
+        />
+      ) : (
+        <div className="sell-fill-list">
+          {props.rows.map((row) => (
+            <SellFillCard
+              key={row.id}
+              row={row}
+              onRemove={props.onRemoveSellFill}
+              onUpdateStatus={props.onUpdateStatus}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function BuyingPowerSummaryGrid(props: { summary: BuyingPowerSummary }) {
+  const { summary } = props
+
+  return (
+    <div className="buying-power-summary" aria-label="Buying power summary">
+      <ScenarioLevel
+        label="Starting cash"
+        reason="Manual cash already available before filled sells."
+        value={formatCurrency(summary.startingCash)}
+      />
+      <ScenarioLevel
+        label="Filled proceeds"
+        reason={`${summary.filledSellCount} filled/reviewed sells count here.`}
+        value={formatCurrency(summary.filledSellProceeds)}
+      />
+      <ScenarioLevel
+        label="Reserve set aside"
+        reason="Estimate from filled sells only."
+        value={formatCurrency(summary.taxReserveSetAside)}
+      />
+      <ScenarioLevel
+        label="Pay yourself"
+        reason="Based on actual filled sell gains after reserve."
+        value={formatCurrency(summary.payYourselfSetAside)}
+      />
+      <ScenarioLevel
+        label="Already reinvested"
+        reason="Manual cash you marked as already redeployed."
+        value={formatCurrency(summary.manuallyReinvestedCash)}
+      />
+      <ScenarioLevel
+        label="Buying power"
+        reason={`${summary.pendingSellCount} pending sells ignored; ${summary.missingInputCount} filled rows need detail.`}
+        value={formatCurrency(summary.remainingCashAvailable)}
+      />
+    </div>
+  )
+}
+
+function SellFillCard(props: {
+  row: SellFillRow
+  onRemove: (id: string) => void
+  onUpdateStatus: (id: string, status: SellFillStatus) => void
+}) {
+  const { row } = props
+  const missingCopy = formatMissingFields(row.metrics.missingFields)
+
+  return (
+    <article className={`sell-fill-card ${row.status}`}>
+      <div className="journal-entry-topline">
+        <div>
+          <span className={`ticket-state ${row.status}`}>
+            {getSellFillStatusLabel(row.status)}
+          </span>
+          <strong>
+            {row.symbol} · {formatShares(row.sharesSold)} sold at{' '}
+            {formatCurrency(row.fillPrice)}
+          </strong>
+          <time>{row.filledDate || 'No filled date'}</time>
+        </div>
+        <span className="mono">
+          {formatSignedCurrency(row.metrics.realizedGainLoss)}
+        </span>
+      </div>
+
+      <div className="journal-entry-metrics">
+        <ScenarioLevel
+          label="Cash raised"
+          reason="Shares sold times fill price, less fees."
+          value={formatCurrency(row.metrics.cashRaised)}
+        />
+        <ScenarioLevel
+          label="Cost basis removed"
+          reason={
+            row.metrics.costBasisSource === 'cost_basis'
+              ? 'Uses entered total cost basis.'
+              : row.metrics.costBasisSource === 'average_cost'
+                ? 'Uses shares sold times average cost.'
+                : 'Waiting for cost detail.'
+          }
+          value={formatCurrency(row.metrics.costBasisRemoved)}
+        />
+        <ScenarioLevel
+          label="Cash to reinvest"
+          reason={
+            row.metrics.countsForBuyingPower
+              ? missingCopy || 'After reserve and pay-yourself.'
+              : 'Status is not filled, so this row is ignored.'
+          }
+          value={formatCurrency(row.metrics.reinvestableCash)}
+        />
+      </div>
+
+      <div className="journal-entry-metrics">
+        <ScenarioLevel
+          label="Reserve"
+          reason="Planning estimate only."
+          value={formatCurrency(row.metrics.taxReserveEstimate)}
+        />
+        <ScenarioLevel
+          label="Pay yourself"
+          reason="Only filled/reviewed sell gains feed this amount."
+          value={formatCurrency(row.metrics.payYourselfSetAside)}
+        />
+        <ScenarioLevel
+          label="Record source"
+          reason={row.reference || row.source || 'Manual record'}
+          value={row.metrics.countsForBuyingPower ? 'Counted' : 'Ignored'}
+        />
+      </div>
+
+      <div className="ticket-copy">
+        <p>
+          <strong>Notes</strong>
+          <span>{row.notes || 'No sell notes yet.'}</span>
+        </p>
+        {missingCopy && (
+          <p>
+            <strong>Missing</strong>
+            <span>{missingCopy}</span>
+          </p>
+        )}
+      </div>
+
+      <div className="ticket-actions">
+        <label className="inline-select">
+          <span>Status</span>
+          <select
+            value={row.status}
+            onChange={(event) =>
+              props.onUpdateStatus(
+                row.id,
+                event.target.value as SellFillStatus,
+              )
+            }
+          >
+            <option value="planned">Planned</option>
+            <option value="ordered">Ordered</option>
+            <option value="filled">Filled</option>
+            <option value="canceled">Canceled</option>
+            <option value="reviewed">Reviewed</option>
+          </select>
+        </label>
+        <button type="button" onClick={() => props.onRemove(row.id)}>
+          Remove
+        </button>
+      </div>
+    </article>
   )
 }
 
@@ -2980,33 +3546,50 @@ function ProfitCashPlanPanel(props: {
   return (
     <section className="profit-cash-plan" aria-label="Profit cash plan">
       <div className="setup-heading">
-        <strong>Profit cash plan</strong>
-        <span>{formatCurrency(plan.cashToPlan)} after pay-yourself</span>
+        <strong>Reinvest cash plan</strong>
+        <span>
+          {formatCurrency(plan.cashToPlan)} from {plan.sourceLabel}
+        </span>
       </div>
       <p className="state-note">{PROFIT_CASH_PLAN_DISCLOSURE}</p>
 
       <div className="profit-cash-summary">
         <ScenarioLevel
-          label="After reserve"
-          reason="Net realized profit minus the tax reserve estimate."
-          value={formatCurrency(plan.profitAfterReserve)}
+          label="Starting cash"
+          reason="Manual cash available before filled sells."
+          value={formatCurrency(plan.startingCash)}
+        />
+        <ScenarioLevel
+          label="Filled proceeds"
+          reason="Cash raised by filled/reviewed sells only."
+          value={formatCurrency(plan.filledSellProceeds)}
+        />
+        <ScenarioLevel
+          label="Reserve set aside"
+          reason="Planning reserve subtracted before reinvest review."
+          value={formatCurrency(plan.reserveSetAside)}
         />
         <ScenarioLevel
           label="Pay-yourself set aside"
-          reason="Uses the rule above before planning what is left."
+          reason="Uses actual filled sell gains after reserve."
           value={formatCurrency(plan.payYourselfAmount)}
         />
         <ScenarioLevel
-          label="Cash to place"
-          reason="The amount left to review for reinvesting, buying back, or staying in cash."
+          label="Marked reinvested"
+          reason="Manual cash already redeployed."
+          value={formatCurrency(plan.manuallyReinvestedCash)}
+        />
+        <ScenarioLevel
+          label="Cash to deploy"
+          reason="Remaining buying power to review for holdings, research ideas, or cash."
           value={formatCurrency(plan.cashToPlan)}
         />
       </div>
 
       {plan.cashToPlan <= 0 ? (
         <EmptyState
-          detail="Log an executed trade, mistake, or result row with realized profit to see cash left after reserve and pay-yourself."
-          title="No profit cash to plan yet"
+          detail="Add a filled sell or starting cash, then subtract reserve, pay-yourself, and manually marked reinvestments."
+          title="No reinvest cash to plan yet"
         />
       ) : (
         <div className="profit-cash-grid">
@@ -3794,6 +4377,39 @@ function getJournalStatusLabel(status: TradeJournalEntryStatus): string {
     case 'result':
       return 'Result'
   }
+}
+
+function getSellFillStatusLabel(status: SellFillStatus): string {
+  switch (status) {
+    case 'planned':
+      return 'Planned'
+    case 'ordered':
+      return 'Ordered'
+    case 'filled':
+      return 'Filled'
+    case 'canceled':
+      return 'Canceled'
+    case 'reviewed':
+      return 'Reviewed'
+  }
+}
+
+function formatMissingFields(fields: readonly string[]): string {
+  return fields.length > 0 ? `Missing ${fields.join(', ')}.` : ''
+}
+
+function formatSellFillImportMessage(result: {
+  records: readonly SellFillRecord[]
+  errors: readonly string[]
+}): string {
+  const importedCopy =
+    result.records.length === 1
+      ? 'Imported 1 sell record.'
+      : `Imported ${result.records.length} sell records.`
+  const errorCopy =
+    result.errors.length > 0 ? ` ${result.errors.join(' ')}` : ''
+
+  return `${importedCopy}${errorCopy}`
 }
 
 function parseSettingsForm(form: SettingsForm): Partial<PortfolioSettings> {
