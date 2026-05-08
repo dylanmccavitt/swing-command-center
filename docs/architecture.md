@@ -8,7 +8,10 @@ accepts manual local lot inputs in the browser session, polls a replaceable
 market-data provider for holdings and research watchlist symbols, turns
 complete positions into concentration status, chart rows, and manual
 profit-lock scenario tickets, and keeps an editable AI-stack research watchlist
-for thesis-first trade setup tracking. The research desk can run a typed
+for thesis-first trade setup tracking. A target/stop scenario planner combines
+selected holdings or research cards with editable price, risk, trim, support,
+and time-horizon inputs to draft manual planning levels with calculation
+reasons. The research desk can run a typed
 research-provider flow for one symbol or the selected AI-stack layer, then
 draft editable research fields with visible source URLs, timestamps, and review
 state. It can also queue a local Codex/ChatGPT research request JSON and import
@@ -30,6 +33,9 @@ AI-drafted / Needs review.
 - `src/lib/profitLock.ts`: manual scenario ticket calculators for trimming to
   target weight, locking unrealized gains, recovering cost basis, raising a
   cash target, and estimating an editable tax reserve bucket.
+- `src/lib/scenarioPlanner.ts`: manual target/stop scenario calculator for
+  planned entry, stop level, stop-limit buffer, first target, stretch target,
+  trim size, proceeds, gain/loss, and remaining position.
 - `src/lib/cockpit.ts`: first-screen derived summaries, top profit-lock
   scenario ranking, allocation/gain/concentration chart rows, and symbol color
   mapping.
@@ -67,6 +73,10 @@ AI-drafted / Needs review.
   tax reserves and trade plans are estimates/helpers, not financial advice.
 - Scenario boundary: profit-lock outputs are manual scenario tickets. The app
   must not present them as certain buy/sell recommendations or execute them.
+- Target/stop boundary: target and stop outputs are review scenarios only. The
+  planner can explain levels from risk budgets, R multiples, gain percents,
+  and manual reference prices, but it must not guarantee a result, recommend a
+  buy/sell action, create an order ticket, or automate execution.
 - Research boundary: AI-stack candidate scores only measure whether user-editable
   thesis/setup fields are filled. They must not be framed as an AI model,
   guaranteed recommendation, ranking of expected returns, or automated trade
@@ -100,24 +110,30 @@ AI-drafted / Needs review.
    session price/watchlist movement from typed derived rows.
 8. Profit-lock helpers turn a complete selected position into scenario tickets
    for target-weight trims, gain locks, cost-basis recovery, and cash raising.
-9. Research watchlist helpers group current holdings and placeholder candidates
+9. Target/stop scenario helpers turn the selected current holding or research
+   card plus editable inputs into planned entry, stop, stop-limit buffer, first
+   target, stretch target, trim, proceeds, gain/loss, and remaining-position
+   outputs with explicit reasons and guardrails.
+10. Research watchlist helpers group current holdings and placeholder candidates
    by AI-stack layer, calculate manual checklist completeness, and filter the
    candidate list by layer, score, holding status, and missing inputs.
-10. The user can run research for the selected symbol or selected layer. The
+11. The user can run research for the selected symbol or selected layer. The
     research provider returns recent-news, investor, filing, earnings, and
     sector-context source metadata; the app drafts thesis, catalyst,
     invalidation, risk notes, review date, and source notes into the editable
     card.
-11. The user can queue a Codex research request for the selected symbol. The app
+12. The user can queue a Codex research request for the selected symbol. The app
     creates a structured request JSON for manual worker processing, then can
     import a local result JSON only after schema, symbol/request, source
     metadata, and non-recommendation validation pass.
-12. Tests verify that the seed list remains limited to the known symbols, does
+13. Tests verify that the seed list remains limited to the known symbols, does
     not invent lot data, and that portfolio/profit-lock/cockpit math remains
     stable. Research-provider tests cover source metadata, stale/empty states,
     draft normalization, and non-recommendation copy. Codex queue tests cover
     request payloads, result validation, source metadata, ignored generated
-    artifacts, and non-recommendation copy.
+    artifacts, and non-recommendation copy. Scenario-planner tests cover
+    target/stop math, stop-limit buffers, missing-input states, invalid
+    long-position stops, and non-recommendation copy.
 
 ## Important Invariants
 
@@ -131,6 +147,9 @@ AI-drafted / Needs review.
   unless the user edits the session settings.
 - Tax reserve is an editable estimate bucket for planning, not tax advice or a
   filing calculation.
+- Target/stop planning levels require user-reviewable inputs and must surface
+  missing cost basis, stale or missing market data, invalid risk/reward, and
+  stops above planned entry for long positions.
 - AI-stack research layers are hyperscalers, GPU/chip designers, foundries,
   memory, semiconductor equipment, EDA/IP, networking, power/cooling, data
   centers, and energy.

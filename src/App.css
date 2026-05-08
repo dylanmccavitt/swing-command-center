@@ -171,7 +171,9 @@ dt,
 .lot-row label span,
 .setting-control > span,
 .field-control > span,
-.setup-heading span {
+.setup-heading span,
+.planner-status > span,
+.scenario-level > span {
   color: var(--muted);
   font-size: 11px;
   font-weight: 800;
@@ -1016,6 +1018,62 @@ button:focus-visible {
   gap: 8px;
 }
 
+.target-planner,
+.profit-ticket-section {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.target-planner .planner-controls {
+  grid-template-columns: minmax(220px, 1.1fr) repeat(3, minmax(0, 0.75fr));
+}
+
+.planner-input-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.planner-status {
+  display: grid;
+  min-width: 0;
+  min-height: 78px;
+  align-content: space-between;
+  gap: 6px;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  padding: 10px;
+}
+
+.planner-status strong {
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 850;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.planner-status small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.planner-status.ready {
+  border-color: rgba(36, 107, 87, 0.35);
+}
+
+.planner-status.missing_input {
+  border-color: rgba(165, 111, 26, 0.35);
+}
+
+.planner-status.invalid {
+  border-color: rgba(174, 61, 52, 0.35);
+}
+
 .setting-control {
   align-content: space-between;
   min-height: 78px;
@@ -1057,6 +1115,118 @@ button:focus-visible {
   border: 1px solid var(--line);
   background: var(--soft);
   padding: 9px;
+}
+
+.scenario-plan-output {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 10px;
+}
+
+.scenario-plan-output.ready {
+  border-color: rgba(36, 107, 87, 0.35);
+}
+
+.scenario-plan-output.missing_input {
+  border-color: rgba(165, 111, 26, 0.35);
+}
+
+.scenario-plan-output.invalid {
+  border-color: rgba(174, 61, 52, 0.35);
+}
+
+.scenario-plan-topline {
+  display: flex;
+  min-width: 0;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.scenario-plan-topline > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.scenario-plan-topline strong {
+  color: var(--ink);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.scenario-plan-topline span {
+  color: var(--muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.planner-issue-list {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 16px;
+}
+
+.planner-issue-list li {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.planner-issue-list li.warning,
+.ticket-state.missing_input {
+  color: var(--amber);
+}
+
+.planner-issue-list li.invalid,
+.ticket-state.invalid {
+  color: var(--red);
+}
+
+.level-output-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.scenario-level {
+  display: grid;
+  min-width: 0;
+  min-height: 116px;
+  align-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  padding: 9px;
+}
+
+.scenario-level strong {
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 17px;
+  font-weight: 850;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.scenario-level strong.positive {
+  color: var(--accent);
+}
+
+.scenario-level strong.negative,
+.scenario-level strong.danger {
+  color: var(--red);
+}
+
+.scenario-level small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .candidate-score-list button {
@@ -1262,6 +1432,12 @@ dd {
   .metric-cell:nth-child(2) {
     border-bottom: 1px solid var(--line);
   }
+
+  .target-planner .planner-controls,
+  .planner-input-grid,
+  .level-output-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 760px) {
@@ -1282,6 +1458,8 @@ dd {
   .filter-grid,
   .settings-grid,
   .planner-controls,
+  .planner-input-grid,
+  .level-output-grid,
   .ticket-grid {
     grid-template-columns: 1fr;
   }
@@ -1299,6 +1477,7 @@ dd {
   .state-banner,
   .panel-heading,
   .research-card-topline,
+  .scenario-plan-topline,
   .scenario-list button,
   .candidate-score-list button,
   .chart-row,

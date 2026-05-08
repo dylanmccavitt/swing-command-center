@@ -43,6 +43,15 @@ import type { PortfolioSettings } from './lib/portfolio'
 import { buildProfitLockTickets } from './lib/profitLock'
 import type { ProfitLockTicket } from './lib/profitLock'
 import {
+  buildTargetStopScenario,
+  SCENARIO_PLANNER_DISCLOSURE,
+} from './lib/scenarioPlanner'
+import type {
+  ScenarioPlannerInput,
+  ScenarioPlannerQuoteState,
+  TargetStopScenario,
+} from './lib/scenarioPlanner'
+import {
   buildResearchCandidateScores,
   filterResearchCandidateScores,
   groupResearchCardsByLayer,
@@ -95,6 +104,24 @@ type ResearchFiltersForm = {
   holdingsOnly: boolean
   needsInputOnly: boolean
 }
+
+type ScenarioPlannerForm = {
+  currentPrice: string
+  averageCost: string
+  shares: string
+  maxLossDollars: string
+  desiredRiskReward: string
+  targetGainPercent: string
+  trimPercent: string
+  supportPrice: string
+  stopLimitBufferPercent: string
+  timeHorizon: string
+}
+
+type ScenarioPlannerFormMap = Record<
+  string,
+  Partial<ScenarioPlannerForm>
+>
 
 type ResearchRunStatus =
   | 'idle'
@@ -155,6 +182,19 @@ const DEFAULT_RESEARCH_FILTERS: ResearchFiltersForm = {
   needsInputOnly: false,
 }
 
+const DEFAULT_SCENARIO_PLANNER_FORM: ScenarioPlannerForm = {
+  currentPrice: '',
+  averageCost: '',
+  shares: '',
+  maxLossDollars: '250',
+  desiredRiskReward: '2',
+  targetGainPercent: '20',
+  trimPercent: '25',
+  supportPrice: '',
+  stopLimitBufferPercent: '0.5',
+  timeHorizon: '2-4 weeks',
+}
+
 const IDLE_RESEARCH_RUN: ResearchRunRecord = {
   status: 'idle',
   updatedAt: null,
@@ -205,8 +245,8 @@ function App() {
   )
   const [settingsForm, setSettingsForm] =
     useState<SettingsForm>(DEFAULT_SETTINGS_FORM)
-  const [selectedSymbol, setSelectedSymbol] = useState<string>(
-    seedHoldings[0].symbol,
+  const [selectedPlannerSymbol, setSelectedPlannerSymbol] = useState<string>(
+    seedWatchlist[0].symbol,
   )
   const [cashTargetInput, setCashTargetInput] = useState(
     String(DEFAULT_CASH_TARGET_AMOUNT),
@@ -220,6 +260,8 @@ function App() {
   const [researchFilters, setResearchFilters] = useState<ResearchFiltersForm>(
     DEFAULT_RESEARCH_FILTERS,
   )
+  const [scenarioPlannerForms, setScenarioPlannerForms] =
+    useState<ScenarioPlannerFormMap>({})
   const [researchRuns, setResearchRuns] = useState<ResearchRunMap>({})
   const [codexQueue, setCodexQueue] = useState<CodexQueueMap>({})
   const researchProvider = useMemo(
@@ -277,6 +319,9 @@ function App() {
   const selectedCodexQueueRecord = selectedResearchCard
     ? codexQueue[selectedResearchCard.symbol] ?? IDLE_CODEX_QUEUE_RECORD
     : IDLE_CODEX_QUEUE_RECORD
+  const selectedPlannerCard =
+    researchCards.find((card) => card.symbol === selectedPlannerSymbol) ??
+    selectedResearchCard
   const portfolioSettings = useMemo(
     () => parseSettingsForm(settingsForm),
     [settingsForm],
@@ -298,10 +343,52 @@ function App() {
     () => buildPortfolioModel(portfolioInputs, portfolioSettings),
     [portfolioInputs, portfolioSettings],
   )
-  const selectedPosition =
+  const selectedPlannerPosition =
     portfolioModel.positions.find(
-      (position) => position.symbol === selectedSymbol,
+      (position) => position.symbol === selectedPlannerSymbol,
     ) ?? null
+  const selectedPlannerQuote = quotesBySymbol.get(selectedPlannerSymbol)
+  const selectedPlannerForm = useMemo(
+    () => scenarioPlannerForms[selectedPlannerSymbol] ?? {},
+    [scenarioPlannerForms, selectedPlannerSymbol],
+  )
+  const scenarioPlannerFields = useMemo(
+    () =>
+      buildScenarioPlannerFieldValues({
+        card: selectedPlannerCard,
+        form: selectedPlannerForm,
+        position: selectedPlannerPosition,
+        quote: selectedPlannerQuote,
+      }),
+    [
+      selectedPlannerCard,
+      selectedPlannerForm,
+      selectedPlannerPosition,
+      selectedPlannerQuote,
+    ],
+  )
+  const targetStopScenario = useMemo(
+    () =>
+      buildTargetStopScenario(
+        buildScenarioPlannerInput({
+          card: selectedPlannerCard,
+          fields: scenarioPlannerFields,
+          hasManualCurrentPrice: hasScenarioFormField(
+            selectedPlannerForm,
+            'currentPrice',
+          ),
+          quote: selectedPlannerQuote,
+          symbol: selectedPlannerSymbol,
+        }),
+      ),
+    [
+      scenarioPlannerFields,
+      selectedPlannerCard,
+      selectedPlannerForm,
+      selectedPlannerQuote,
+      selectedPlannerSymbol,
+    ],
+  )
   const cashTargetAmount =
     parseNumericInput(cashTargetInput) ??
     portfolioModel.settings.cashRunwayDollars
@@ -317,14 +404,14 @@ function App() {
   const profitLockTickets = useMemo(
     () =>
       buildProfitLockTickets({
-        position: selectedPosition,
+        position: selectedPlannerPosition,
         portfolioMarketValue: portfolioModel.totalMarketValue,
         settings: portfolioModel.settings,
         targetWeightPercent: portfolioModel.settings.maxPositionWeightPercent,
         cashTargetAmount,
       }),
     [
-      selectedPosition,
+      selectedPlannerPosition,
       portfolioModel.totalMarketValue,
       portfolioModel.settings,
       cashTargetAmount,
@@ -423,6 +510,27 @@ function App() {
     setResearchFilters((current) => ({
       ...current,
       [field]: value,
+    }))
+  }
+
+  function selectPlannerSymbol(symbol: string) {
+    setSelectedPlannerSymbol(symbol)
+
+    if (researchCards.some((card) => card.symbol === symbol)) {
+      setSelectedResearchSymbol(symbol)
+    }
+  }
+
+  function updateScenarioPlannerField(
+    field: keyof ScenarioPlannerForm,
+    value: string,
+  ) {
+    setScenarioPlannerForms((current) => ({
+      ...current,
+      [selectedPlannerSymbol]: {
+        ...current[selectedPlannerSymbol],
+        [field]: value,
+      },
     }))
   }
 
@@ -751,8 +859,8 @@ function App() {
             <TopScenarioList
               manualLotsNeeded={portfolioModel.manualLotsNeeded}
               scenarios={topProfitLockScenarios}
-              selectedSymbol={selectedSymbol}
-              onSelectSymbol={setSelectedSymbol}
+              selectedSymbol={selectedPlannerSymbol}
+              onSelectSymbol={selectPlannerSymbol}
             />
           </section>
 
@@ -956,54 +1064,25 @@ function App() {
         <section className="cockpit-panel planner-panel">
           <PanelHeading
             eyebrow="Scenario desk"
-            title="Selected ticket set"
-            value={selectedSymbol}
+            title="Target/stop planner"
+            value={selectedPlannerSymbol}
           />
-          <div className="planner-controls">
-            <label className="setting-control">
-              <span>Position</span>
-              <select
-                value={selectedSymbol}
-                onChange={(event) => setSelectedSymbol(event.target.value)}
-              >
-                {portfolioModel.positions.map((position) => (
-                  <option key={position.symbol} value={position.symbol}>
-                    {position.symbol}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <NumberSetting
-              label="Cash target"
-              min="0"
-              prefix="$"
-              value={cashTargetInput}
-              onChange={setCashTargetInput}
-            />
-            <MetricCell
-              detail="estimate bucket only"
-              label="Tax reserve"
-              tone="neutral"
-              value={
-                portfolioModel.settings.taxReserveEnabled
-                  ? `${portfolioModel.settings.taxReserveRatePercent}%`
-                  : 'Off'
-              }
-            />
-          </div>
-
-          {profitLockTickets.length === 0 ? (
-            <EmptyState
-              detail={`Add shares, average cost, and current price for ${selectedSymbol}.`}
-              title="No selected tickets"
-            />
-          ) : (
-            <div className="ticket-grid">
-              {profitLockTickets.map((ticket) => (
-                <ProfitLockTicketCard key={ticket.id} ticket={ticket} />
-              ))}
-            </div>
-          )}
+          <ScenarioPlannerDesk
+            cards={researchCards}
+            cashTargetInput={cashTargetInput}
+            fields={scenarioPlannerFields}
+            profitLockTickets={profitLockTickets}
+            scenario={targetStopScenario}
+            selectedSymbol={selectedPlannerSymbol}
+            taxReserveLabel={
+              portfolioModel.settings.taxReserveEnabled
+                ? `${portfolioModel.settings.taxReserveRatePercent}%`
+                : 'Off'
+            }
+            onSelectSymbol={selectPlannerSymbol}
+            onUpdateCashTarget={setCashTargetInput}
+            onUpdateField={updateScenarioPlannerField}
+          />
         </section>
       </section>
 
@@ -1996,6 +2075,250 @@ function NumberSetting(props: {
   )
 }
 
+function ScenarioPlannerDesk(props: {
+  cards: readonly SeedWatchlistItem[]
+  cashTargetInput: string
+  fields: ScenarioPlannerForm
+  profitLockTickets: readonly ProfitLockTicket[]
+  scenario: TargetStopScenario
+  selectedSymbol: string
+  taxReserveLabel: string
+  onSelectSymbol: (symbol: string) => void
+  onUpdateCashTarget: (value: string) => void
+  onUpdateField: (field: keyof ScenarioPlannerForm, value: string) => void
+}) {
+  return (
+    <div className="target-planner">
+      <div className="planner-controls">
+        <label className="setting-control">
+          <span>Symbol / source</span>
+          <select
+            value={props.selectedSymbol}
+            onChange={(event) => props.onSelectSymbol(event.target.value)}
+          >
+            {props.cards.map((card) => (
+              <option key={card.symbol} value={card.symbol}>
+                {card.symbol} · {card.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <NumberSetting
+          label="Cash target"
+          min="0"
+          prefix="$"
+          value={props.cashTargetInput}
+          onChange={props.onUpdateCashTarget}
+        />
+        <div className={`planner-status ${props.scenario.status}`}>
+          <span>Planner state</span>
+          <strong>{getScenarioPlannerStatusLabel(props.scenario.status)}</strong>
+          <small>
+            {props.scenario.sourceLabel} · {props.scenario.timeHorizon}
+          </small>
+        </div>
+        <div className="planner-status">
+          <span>Tax reserve</span>
+          <strong>{props.taxReserveLabel}</strong>
+          <small>Estimate bucket only</small>
+        </div>
+      </div>
+
+      <div className="planner-input-grid">
+        <NumberSetting
+          label="Current price"
+          min="0"
+          prefix="$"
+          value={props.fields.currentPrice}
+          onChange={(value) => props.onUpdateField('currentPrice', value)}
+        />
+        <NumberSetting
+          label="Average cost"
+          min="0"
+          prefix="$"
+          value={props.fields.averageCost}
+          onChange={(value) => props.onUpdateField('averageCost', value)}
+        />
+        <NumberSetting
+          label="Shares"
+          min="0"
+          value={props.fields.shares}
+          onChange={(value) => props.onUpdateField('shares', value)}
+        />
+        <NumberSetting
+          label="Max loss"
+          min="0"
+          prefix="$"
+          value={props.fields.maxLossDollars}
+          onChange={(value) => props.onUpdateField('maxLossDollars', value)}
+        />
+        <NumberSetting
+          label="Risk / reward"
+          min="0"
+          suffix="R"
+          value={props.fields.desiredRiskReward}
+          onChange={(value) => props.onUpdateField('desiredRiskReward', value)}
+        />
+        <NumberSetting
+          label="Target gain"
+          min="0"
+          suffix="%"
+          value={props.fields.targetGainPercent}
+          onChange={(value) => props.onUpdateField('targetGainPercent', value)}
+        />
+        <NumberSetting
+          label="Trim size"
+          max="100"
+          min="0"
+          suffix="%"
+          value={props.fields.trimPercent}
+          onChange={(value) => props.onUpdateField('trimPercent', value)}
+        />
+        <NumberSetting
+          label="Support / ref"
+          min="0"
+          prefix="$"
+          value={props.fields.supportPrice}
+          onChange={(value) => props.onUpdateField('supportPrice', value)}
+        />
+        <NumberSetting
+          label="Limit buffer"
+          min="0"
+          suffix="%"
+          value={props.fields.stopLimitBufferPercent}
+          onChange={(value) =>
+            props.onUpdateField('stopLimitBufferPercent', value)
+          }
+        />
+        <TextField
+          label="Time horizon"
+          value={props.fields.timeHorizon}
+          onChange={(value) => props.onUpdateField('timeHorizon', value)}
+        />
+      </div>
+
+      <p className="state-note">{SCENARIO_PLANNER_DISCLOSURE}</p>
+      <ScenarioPlannerOutput scenario={props.scenario} />
+
+      <div className="profit-ticket-section">
+        <div className="setup-heading">
+          <strong>Profit-lock tickets</strong>
+          <span>Selected holding only</span>
+        </div>
+        {props.profitLockTickets.length === 0 ? (
+          <EmptyState
+            detail={`Complete the manual lots table for ${props.selectedSymbol}, or select a current holding with modeled lots.`}
+            title="No selected holding tickets"
+          />
+        ) : (
+          <div className="ticket-grid">
+            {props.profitLockTickets.map((ticket) => (
+              <ProfitLockTicketCard key={ticket.id} ticket={ticket} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ScenarioPlannerOutput(props: { scenario: TargetStopScenario }) {
+  const { scenario } = props
+
+  return (
+    <div className={`scenario-plan-output ${scenario.status}`}>
+      <div className="scenario-plan-topline">
+        <div>
+          <strong>{scenario.symbol} planning levels</strong>
+          <span>{scenario.name}</span>
+        </div>
+        <span className={`ticket-state ${scenario.status}`}>
+          {getScenarioPlannerStatusLabel(scenario.status)}
+        </span>
+      </div>
+
+      {scenario.issues.length > 0 && (
+        <ul className="planner-issue-list">
+          {scenario.issues.map((issue) => (
+            <li className={issue.severity} key={`${issue.code}-${issue.message}`}>
+              {issue.message}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="level-output-grid">
+        <ScenarioLevel
+          label="Planned entry"
+          reason={scenario.plannedEntry.reason}
+          value={formatCurrency(scenario.plannedEntry.value)}
+        />
+        <ScenarioLevel
+          label="Stop level"
+          reason={scenario.stopLevel.reason}
+          value={formatCurrency(scenario.stopLevel.value)}
+        />
+        <ScenarioLevel
+          label="Stop-limit note"
+          reason={scenario.stopLimit.note}
+          value={formatCurrency(scenario.stopLimit.limit)}
+        />
+        <ScenarioLevel
+          label="First target"
+          reason={scenario.firstTarget.reason}
+          value={formatCurrency(scenario.firstTarget.value)}
+        />
+        <ScenarioLevel
+          label="Stretch target"
+          reason={scenario.stretchTarget.reason}
+          value={formatCurrency(scenario.stretchTarget.value)}
+        />
+        <ScenarioLevel
+          label="Trim size"
+          reason={scenario.trimShares.reason}
+          value={formatShares(scenario.trimShares.value)}
+        />
+        <ScenarioLevel
+          label="Estimated proceeds"
+          reason={scenario.estimatedProceeds.reason}
+          value={formatCurrency(scenario.estimatedProceeds.value)}
+        />
+        <ScenarioLevel
+          label="Estimated gain/loss"
+          reason={scenario.estimatedGainLoss.reason}
+          tone={getSignedTone(scenario.estimatedGainLoss.value ?? 0)}
+          value={formatSignedCurrency(scenario.estimatedGainLoss.value)}
+        />
+        <ScenarioLevel
+          label="Remaining position"
+          reason={scenario.remainingShares.reason}
+          value={`${formatShares(scenario.remainingShares.value)} sh`}
+        />
+        <ScenarioLevel
+          label="Remaining value"
+          reason={scenario.remainingPositionValue.reason}
+          value={formatCurrency(scenario.remainingPositionValue.value)}
+        />
+      </div>
+    </div>
+  )
+}
+
+function ScenarioLevel(props: {
+  label: string
+  value: string
+  reason: string
+  tone?: 'neutral' | 'positive' | 'negative' | 'warning' | 'danger'
+}) {
+  return (
+    <article className="scenario-level">
+      <span>{props.label}</span>
+      <strong className={props.tone ?? 'neutral'}>{props.value}</strong>
+      <small>{props.reason}</small>
+    </article>
+  )
+}
+
 function ProfitLockTicketCard(props: { ticket: ProfitLockTicket }) {
   const { ticket } = props
 
@@ -2329,6 +2652,182 @@ function getSymbolLabel(symbol: string): { name: string; layer: string } {
     layer: watchlistItem
       ? getAiStackLayerLabel(watchlistItem.stackLayer)
       : 'Watchlist',
+  }
+}
+
+function buildScenarioPlannerFieldValues(input: {
+  card: SeedWatchlistItem | null
+  form: Partial<ScenarioPlannerForm>
+  position: ReturnType<typeof buildPortfolioModel>['positions'][number] | null
+  quote: MarketQuote | undefined
+}): ScenarioPlannerForm {
+  const maxLossFallback = extractFirstNumberInput(input.card?.tradeSetup.maxLoss)
+  const supportFallback =
+    extractFirstNumberInput(input.card?.tradeSetup.stopLevel) ||
+    extractFirstNumberInput(input.card?.research.stop)
+  const timeHorizonFallback =
+    input.card?.tradeSetup.timeHorizon ||
+    DEFAULT_SCENARIO_PLANNER_FORM.timeHorizon
+
+  return {
+    currentPrice: getScenarioFormValue(
+      input.form,
+      'currentPrice',
+      formatEditableNumber(input.quote?.price),
+    ),
+    averageCost: getScenarioFormValue(
+      input.form,
+      'averageCost',
+      formatEditableNumber(input.position?.averageCost),
+    ),
+    shares: getScenarioFormValue(
+      input.form,
+      'shares',
+      formatEditableNumber(input.position?.shares),
+    ),
+    maxLossDollars: getScenarioFormValue(
+      input.form,
+      'maxLossDollars',
+      maxLossFallback || DEFAULT_SCENARIO_PLANNER_FORM.maxLossDollars,
+    ),
+    desiredRiskReward: getScenarioFormValue(
+      input.form,
+      'desiredRiskReward',
+      DEFAULT_SCENARIO_PLANNER_FORM.desiredRiskReward,
+    ),
+    targetGainPercent: getScenarioFormValue(
+      input.form,
+      'targetGainPercent',
+      DEFAULT_SCENARIO_PLANNER_FORM.targetGainPercent,
+    ),
+    trimPercent: getScenarioFormValue(
+      input.form,
+      'trimPercent',
+      DEFAULT_SCENARIO_PLANNER_FORM.trimPercent,
+    ),
+    supportPrice: getScenarioFormValue(
+      input.form,
+      'supportPrice',
+      supportFallback,
+    ),
+    stopLimitBufferPercent: getScenarioFormValue(
+      input.form,
+      'stopLimitBufferPercent',
+      DEFAULT_SCENARIO_PLANNER_FORM.stopLimitBufferPercent,
+    ),
+    timeHorizon: getScenarioFormValue(
+      input.form,
+      'timeHorizon',
+      timeHorizonFallback,
+    ),
+  }
+}
+
+function buildScenarioPlannerInput(input: {
+  card: SeedWatchlistItem | null
+  fields: ScenarioPlannerForm
+  hasManualCurrentPrice: boolean
+  quote: MarketQuote | undefined
+  symbol: string
+}): ScenarioPlannerInput {
+  const label = getSymbolLabel(input.symbol)
+
+  return {
+    symbol: input.symbol,
+    name: input.card?.name ?? label.name,
+    sourceLabel: input.card
+      ? `${getAiStackLayerLabel(input.card.stackLayer)} · ${
+          input.card.seedType === 'current_holding'
+            ? 'Current holding'
+            : 'Research card'
+        }`
+      : label.layer,
+    currentPrice: parseNumericInput(input.fields.currentPrice),
+    averageCost: parseNumericInput(input.fields.averageCost),
+    shares: parseNumericInput(input.fields.shares),
+    maxLossDollars: parseNumericInput(input.fields.maxLossDollars),
+    desiredRiskReward: parseNumericInput(input.fields.desiredRiskReward),
+    targetGainPercent: parseNumericInput(input.fields.targetGainPercent),
+    trimPercent: parseNumericInput(input.fields.trimPercent),
+    supportPrice: parseNumericInput(input.fields.supportPrice),
+    stopLimitBufferPercent: parseNumericInput(
+      input.fields.stopLimitBufferPercent,
+    ),
+    timeHorizon: input.fields.timeHorizon,
+    quoteState: getScenarioPlannerQuoteState(
+      input.quote,
+      input.hasManualCurrentPrice,
+    ),
+  }
+}
+
+function getScenarioFormValue(
+  form: Partial<ScenarioPlannerForm>,
+  field: keyof ScenarioPlannerForm,
+  fallback: string,
+): string {
+  return hasScenarioFormField(form, field) ? form[field] ?? '' : fallback
+}
+
+function hasScenarioFormField(
+  form: Partial<ScenarioPlannerForm>,
+  field: keyof ScenarioPlannerForm,
+): boolean {
+  return Object.prototype.hasOwnProperty.call(form, field)
+}
+
+function getScenarioPlannerQuoteState(
+  quote: MarketQuote | undefined,
+  hasManualCurrentPrice: boolean,
+): ScenarioPlannerQuoteState {
+  if (hasManualCurrentPrice) {
+    return 'manual'
+  }
+
+  if (!quote || quote.price === null) {
+    return 'missing'
+  }
+
+  switch (quote.freshness) {
+    case 'cached':
+    case 'delayed':
+      return 'stale'
+    case 'mock':
+      return 'mock'
+    case 'live_iex':
+    case 'live_sip':
+      return 'fresh'
+  }
+}
+
+function extractFirstNumberInput(value: string | undefined): string {
+  if (!value) {
+    return ''
+  }
+
+  const match = value.replaceAll(',', '').match(/-?\d+(?:\.\d+)?/)
+
+  return match ? match[0] : ''
+}
+
+function formatEditableNumber(value: number | null | undefined): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return ''
+  }
+
+  return String(Number(value.toFixed(4)))
+}
+
+function getScenarioPlannerStatusLabel(
+  status: TargetStopScenario['status'],
+): string {
+  switch (status) {
+    case 'ready':
+      return 'Ready for review'
+    case 'missing_input':
+      return 'Needs input'
+    case 'invalid':
+      return 'Fix levels'
   }
 }
 
