@@ -92,7 +92,7 @@ const DEFAULT_STALE_AFTER_MS = 72 * 60 * 60 * 1000
 const DEFAULT_REVIEW_DAYS = 7
 
 export const RESEARCH_DRAFT_DISCLOSURE =
-  'AI-drafted source summary for manual review only. Not a recommendation, rating, guaranteed outcome, or buy/sell instruction.'
+  'Draft research notes for manual review only. Not a recommendation, rating, guaranteed outcome, or buy/sell instruction.'
 
 const COMPANY_SOURCES: Record<string, CompanySourceConfig> = {
   AAPL: {
@@ -282,10 +282,10 @@ export function buildResearchDraftFromBundle(
     reviewState: 'needs_review',
     disclosure: RESEARCH_DRAFT_DISCLOSURE,
     fields: {
-      thesis: `Review whether ${bundle.name} remains useful ${bundle.layerLabel.toLowerCase()} exposure by checking company updates, filings, earnings commentary, and current ${bundle.layerLabel.toLowerCase()} sector context.`,
-      catalyst: `Track confirmed updates around ${layerContext.focus}. Prioritize sourced company materials before turning this into a manual setup.`,
-      invalidation: `Rework the thesis if sourced checks show ${layerContext.risk}, or if company commentary no longer supports the AI-stack role.`,
-      riskNotes: `Key risks to verify: ${layerContext.risk}. Treat this as a research draft until source notes are reviewed manually.`,
+      thesis: `Check whether ${bundle.name} still fits your ${bundle.layerLabel.toLowerCase()} bucket by reviewing company updates, filings, earnings comments, and current sector news.`,
+      catalyst: `Watch sourced updates around ${layerContext.focus}. Use company materials first before turning this into a setup.`,
+      invalidation: `Rewrite the idea if sourced checks show ${layerContext.risk}, or if company commentary no longer supports the AI role.`,
+      riskNotes: `Main risks to verify: ${layerContext.risk}. Treat this as a draft until you review the source notes.`,
       sourceNotes: formatSourceNotes(bundle),
       plannedEntry: '',
       stop: '',
@@ -441,7 +441,7 @@ function formatSourceNotes(bundle: ResearchContextBundle): string {
 
   return [
     ...sourceLines,
-    `Draft state: AI-drafted, needs review. ${RESEARCH_DRAFT_DISCLOSURE}`,
+    `Draft state: draft notes, needs your review. ${RESEARCH_DRAFT_DISCLOSURE}`,
   ].join('\n')
 }
 

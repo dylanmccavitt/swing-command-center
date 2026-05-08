@@ -54,6 +54,40 @@ export const EMPTY_TRADE_SETUP: TradeSetupFields = {
   timeHorizon: '',
 }
 
+export function buildEmptyResearchFields(
+  input: Partial<ResearchFields> = {},
+): ResearchFields {
+  return {
+    thesis: input.thesis ?? '',
+    catalyst: input.catalyst ?? '',
+    invalidation: input.invalidation ?? '',
+    riskNotes: input.riskNotes ?? '',
+    sourceNotes: input.sourceNotes ?? '',
+    plannedEntry: input.plannedEntry ?? '',
+    stop: input.stop ?? '',
+    target: input.target ?? '',
+    reviewDate: input.reviewDate ?? '',
+  }
+}
+
+export function buildManualWatchlistCard(input: {
+  symbol: string
+  name: string
+  stackLayer: AiStackLayerId
+  seedType?: SeedWatchlistItem['seedType']
+}): SeedWatchlistItem {
+  const symbol = input.symbol.trim().toUpperCase()
+
+  return {
+    symbol,
+    name: input.name.trim() || symbol,
+    stackLayer: input.stackLayer,
+    seedType: input.seedType ?? 'placeholder',
+    research: buildEmptyResearchFields(),
+    tradeSetup: { ...EMPTY_TRADE_SETUP },
+  }
+}
+
 export const seedWatchlist: SeedWatchlistItem[] = [
   {
     symbol: 'AAPL',
@@ -223,12 +257,5 @@ function buildResearchSeed(
     'thesis' | 'catalyst' | 'invalidation' | 'riskNotes'
   >,
 ): ResearchFields {
-  return {
-    ...input,
-    sourceNotes: '',
-    plannedEntry: '',
-    stop: '',
-    target: '',
-    reviewDate: '',
-  }
+  return buildEmptyResearchFields(input)
 }

@@ -38,13 +38,13 @@ describe('manual trade tickets and journal', () => {
 
     expect(manualTicket.source).toBe('profit_lock')
     expect(manualTicket.status).toBe('ready')
-    expect(manualTicket.action).toBe('Manual trim / sale review')
+    expect(manualTicket.action).toBe('Review a possible trim / sale')
     expect(manualTicket.estimatedShares).toBeCloseTo(4)
     expect(manualTicket.estimatedCashRaised).toBeCloseTo(400)
     expect(manualTicket.estimatedCashSpent).toBe(0)
     expect(manualTicket.estimatedRealizedGain).toBeCloseTo(200)
     expect(manualTicket.taxReserveEstimate).toBeCloseTo(50)
-    expect(manualTicket.reason).toContain('Lock 20% of unrealized gain')
+    expect(manualTicket.reason).toContain('Take 20% of open gain')
     expect(manualTicket.invalidation).toContain('breakout level')
   })
 
@@ -85,13 +85,13 @@ describe('manual trade tickets and journal', () => {
 
     expect(ticket.source).toBe('trade_setup')
     expect(ticket.status).toBe('ready')
-    expect(ticket.action).toBe('Manual watchlist setup review')
+    expect(ticket.action).toBe('Review a possible watchlist trade')
     expect(ticket.estimatedShares).toBe(20)
     expect(ticket.estimatedCashSpent).toBe(1000)
     expect(ticket.estimatedCashRaised).toBe(0)
     expect(ticket.estimatedRealizedGain).toBe(0)
     expect(ticket.taxReserveEstimate).toBe(0)
-    expect(ticket.reason).toContain('Entry trigger')
+    expect(ticket.reason).toContain('Entry idea')
     expect(ticket.invalidation).toContain('loses $45')
     expect(ticket.disclosure).toContain('no order execution')
   })
@@ -102,7 +102,7 @@ describe('manual trade tickets and journal', () => {
       name: 'NVIDIA',
       ticket: {
         id: 'lock_20_percent_gain',
-        title: 'Lock 20% of unrealized gain',
+        title: 'Take 20% of open gain',
         description: 'Manual gain-lock scenario.',
         status: 'ready',
         note: 'Manual scenario only.',
@@ -190,7 +190,7 @@ describe('manual trade tickets and journal', () => {
     expect(summary.loggedPayYourselfAmount).toBe(15)
   })
 
-  it('exports a tax-helper review shape with summary, entries, and guardrails', () => {
+  it('exports a tax review shape with summary, entries, and guardrails', () => {
     const ticket = buildManualTradeTicketFromProfitLock({
       symbol: 'AAPL',
       name: 'Apple',
@@ -229,7 +229,7 @@ describe('manual trade tickets and journal', () => {
   })
 
   it('keeps copy framed as non-automated planning and not tax advice', () => {
-    expect(TRADE_JOURNAL_DISCLOSURE).toContain('Manual planning checklist')
+    expect(TRADE_JOURNAL_DISCLOSURE).toContain('Manual checklist')
     expect(TRADE_JOURNAL_DISCLOSURE).toContain('No broker credentials')
     expect(TRADE_JOURNAL_DISCLOSURE).toContain('no automated trading')
     expect(TRADE_JOURNAL_DISCLOSURE).toContain('not a filing document')

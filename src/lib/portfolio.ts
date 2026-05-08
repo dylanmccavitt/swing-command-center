@@ -1,5 +1,3 @@
-import type { SeedHolding } from '../data/seedHoldings'
-
 export type PortfolioSettings = {
   maxPositionWeightPercent: number
   alertPositionWeightPercent: number
@@ -59,6 +57,12 @@ export type PortfolioSeedSummary = {
   manualLotsNeeded: number
 }
 
+export type PortfolioSeedHolding = {
+  symbol: string
+  shares: number | null
+  averageCost: number | null
+}
+
 export const DEFAULT_PORTFOLIO_SETTINGS: PortfolioSettings = {
   maxPositionWeightPercent: 30,
   alertPositionWeightPercent: 25,
@@ -69,7 +73,7 @@ export const DEFAULT_PORTFOLIO_SETTINGS: PortfolioSettings = {
 }
 
 export function buildPortfolioSeedSummary(
-  holdings: readonly SeedHolding[],
+  holdings: readonly PortfolioSeedHolding[],
 ): PortfolioSeedSummary {
   return {
     totalSymbols: holdings.length,
@@ -144,9 +148,9 @@ export function buildPortfolioModel(
       maxPositionWeightPercent: normalizedSettings.maxPositionWeightPercent,
       alertPositionWeightPercent:
         normalizedSettings.alertPositionWeightPercent,
-      alertDefinition: `Alert is the soft warning at ${formatRulePercent(
+      alertDefinition: `Warning starts at ${formatRulePercent(
         normalizedSettings.alertPositionWeightPercent,
-      )}; trim scenarios start at the hard cap of ${formatRulePercent(
+      )}; trim ideas start at the hard cap of ${formatRulePercent(
         normalizedSettings.maxPositionWeightPercent,
       )}.`,
     },
@@ -191,10 +195,10 @@ function buildPositionBase(holding: PortfolioHoldingInput): PortfolioPosition {
       unrealizedGainPercent: null,
       weightPercent: null,
       concentrationLevel: 'needs_input',
-      concentrationLabel: 'Needs input',
+      concentrationLabel: 'Needs details',
       concentrationDetail: `Add ${missingFields.join(
         ', ',
-      )} before concentration or profit-lock math runs.`,
+      )} before position-size or gain-lock math runs.`,
       missingFields,
     }
   }
@@ -239,7 +243,7 @@ function applyPortfolioWeight(
       ...position,
       weightPercent,
       concentrationLevel: 'over_cap',
-      concentrationLabel: 'Trim scenario',
+      concentrationLabel: 'Trim idea',
       concentrationDetail: `${formatRulePercent(
         weightPercent,
       )} is at or above the ${formatRulePercent(
@@ -253,12 +257,12 @@ function applyPortfolioWeight(
       ...position,
       weightPercent,
       concentrationLevel: 'alert',
-      concentrationLabel: 'Alert',
+      concentrationLabel: 'Warning',
       concentrationDetail: `${formatRulePercent(
         weightPercent,
       )} is above the ${formatRulePercent(
         settings.alertPositionWeightPercent,
-      )} soft warning level.`,
+      )} warning level.`,
     }
   }
 

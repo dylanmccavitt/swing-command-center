@@ -86,9 +86,9 @@ describe('research draft normalization', () => {
     expect(draft).not.toBeNull()
     expect(draft?.reviewState).toBe('needs_review')
     expect(draft?.fields.reviewDate).toBe('2026-05-14')
-    expect(draft?.fields.thesis).toContain('Review whether Vertiv remains')
+    expect(draft?.fields.thesis).toContain('Check whether Vertiv still fits')
     expect(draft?.fields.sourceNotes).toContain(
-      'AI-drafted, needs review',
+      'draft notes, needs your review',
     )
     expect(draft?.fields.sourceNotes).toContain('https://')
     expect(draft?.fields.sourceNotes).not.toMatch(/\b(Buy|Sell)\b/)

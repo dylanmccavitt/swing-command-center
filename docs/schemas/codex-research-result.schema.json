@@ -39,7 +39,7 @@
       "const": "needs_review"
     },
     "disclosure": {
-      "const": "AI-drafted source summary for manual review only. Not a recommendation, rating, guaranteed outcome, or buy/sell instruction."
+      "const": "Draft research notes for manual review only. Not a recommendation, rating, guaranteed outcome, or buy/sell instruction."
     },
     "fields": {
       "type": "object",

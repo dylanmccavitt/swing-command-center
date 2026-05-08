@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { seedHoldings } from '../data/seedHoldings'
 import {
   buildPortfolioModel,
   buildPortfolioSeedSummary,
@@ -7,17 +6,24 @@ import {
 } from './portfolio'
 
 describe('portfolio seed summary', () => {
-  it('keeps the bootstrap holdings limited to the known current symbols', () => {
-    const summary = buildPortfolioSeedSummary(seedHoldings)
+  it('summarizes the holdings the user provides instead of a fixed symbol list', () => {
+    const summary = buildPortfolioSeedSummary([
+      buildSeedHolding('AAPL', null, null),
+      buildSeedHolding('TSLA', 3, 200),
+    ])
 
-    expect(summary.symbols).toEqual(['AAPL', 'GOOG', 'NVDA', 'IREN'])
-    expect(summary.totalSymbols).toBe(4)
+    expect(summary.symbols).toEqual(['AAPL', 'TSLA'])
+    expect(summary.totalSymbols).toBe(2)
+    expect(summary.manualLotsNeeded).toBe(1)
   })
 
-  it('does not invent manual lot details for seeded holdings', () => {
-    const summary = buildPortfolioSeedSummary(seedHoldings)
+  it('does not invent manual lot details for holdings', () => {
+    const summary = buildPortfolioSeedSummary([
+      buildSeedHolding('AAPL', null, null),
+      buildSeedHolding('NVDA', null, 120),
+    ])
 
-    expect(summary.manualLotsNeeded).toBe(4)
+    expect(summary.manualLotsNeeded).toBe(2)
   })
 })
 
@@ -67,8 +73,8 @@ describe('portfolio model', () => {
 
     expect(iren?.weightPercent).toBe(80)
     expect(iren?.concentrationLevel).toBe('over_cap')
-    expect(iren?.concentrationLabel).toBe('Trim scenario')
-    expect(model.rules.alertDefinition).toContain('soft warning at 25%')
+    expect(iren?.concentrationLabel).toBe('Trim idea')
+    expect(model.rules.alertDefinition).toContain('Warning starts at 25%')
     expect(model.rules.alertDefinition).toContain('hard cap of 30%')
   })
 
@@ -118,5 +124,17 @@ function buildHolding(
     shares,
     averageCost,
     currentPrice,
+  }
+}
+
+function buildSeedHolding(
+  symbol: string,
+  shares: number | null,
+  averageCost: number | null,
+) {
+  return {
+    symbol,
+    shares,
+    averageCost,
   }
 }

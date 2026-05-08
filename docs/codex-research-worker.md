@@ -31,7 +31,7 @@ runtime validator:
 - `companyName`: copy from the request
 - `draftedAt`: current ISO timestamp
 - `reviewState`: `needs_review`
-- `disclosure`: `AI-drafted source summary for manual review only. Not a recommendation, rating, guaranteed outcome, or buy/sell instruction.`
+- `disclosure`: `Draft research notes for manual review only. Not a recommendation, rating, guaranteed outcome, or buy/sell instruction.`
 - `fields.thesis`: short stock brief, 3-5 sentences, covering the company,
   current setup, key financial/research signal, and analyst backdrop
 - `fields.catalyst`: concrete events, data points, and price/setup context to
@@ -61,5 +61,5 @@ Keep the draft framed as a short manual-review stock report. You may report
 analyst ratings, analyst price targets, analyst target ranges, and option
 strike data as sourced context, but do not create your own rating, promise an
 outcome, or write buy/sell instructions. The app will import the file only as
-AI-drafted / Needs review, and the user must review the source notes before
-accepting the card.
+draft notes that need review, and the user must review the source notes before
+using the card.

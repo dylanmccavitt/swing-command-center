@@ -136,8 +136,8 @@ export function summarizeConcentrationRisk(
   if (model.completePositionCount === 0) {
     return {
       state: 'needs_input',
-      label: 'Needs lots',
-      detail: `${needsInputCount} positions need shares and average cost before risk is modeled.`,
+      label: 'Needs details',
+      detail: `Add shares and average cost for ${needsInputCount} positions before using risk numbers.`,
       atRiskCount: 0,
       needsInputCount,
       maxWeightPercent,
@@ -147,7 +147,7 @@ export function summarizeConcentrationRisk(
   if (overCapPositions.length > 0) {
     return {
       state: 'over_cap',
-      label: 'Over cap',
+      label: 'Too big',
       detail: `${overCapPositions.length} position ${
         overCapPositions.length === 1 ? 'is' : 'are'
       } at or above the ${formatCompactPercent(
@@ -162,12 +162,12 @@ export function summarizeConcentrationRisk(
   if (alertPositions.length > 0) {
     return {
       state: 'alert',
-      label: 'Alert',
+      label: 'Warning',
       detail: `${alertPositions.length} position ${
         alertPositions.length === 1 ? 'is' : 'are'
       } above the ${formatCompactPercent(
         model.settings.alertPositionWeightPercent,
-      )} soft warning level.`,
+      )} warning level.`,
       atRiskCount: alertPositions.length,
       needsInputCount,
       maxWeightPercent,
@@ -179,7 +179,7 @@ export function summarizeConcentrationRisk(
     label: 'Within rules',
     detail:
       needsInputCount > 0
-        ? `${model.completePositionCount} positions are modeled; ${needsInputCount} still need manual lots.`
+        ? `${model.completePositionCount} positions have shares and cost; ${needsInputCount} still need details.`
         : 'Modeled positions are below the alert threshold.',
     atRiskCount: 0,
     needsInputCount,
@@ -205,8 +205,8 @@ export function summarizeCashRunway(
       label: 'No target',
       detail:
         bestScenarioNetCash > 0
-          ? 'Scenario cash is available, but the runway target is set to $0.'
-          : 'Set a runway target to compare scenario cash.',
+          ? 'Cash ideas are ready, but the cash goal is set to $0.'
+          : 'Set a cash goal to compare trim ideas.',
     }
   }
 
@@ -215,8 +215,8 @@ export function summarizeCashRunway(
       targetAmount,
       bestScenarioNetCash,
       shortfallAmount: targetAmount,
-      label: 'Needs scenario',
-      detail: 'Complete manual lots before scenario cash can be compared.',
+      label: 'Needs details',
+      detail: 'Add shares and cost first so cash ideas can be compared.',
     }
   }
 
@@ -226,7 +226,7 @@ export function summarizeCashRunway(
       bestScenarioNetCash,
       shortfallAmount: 0,
       label: 'Covered',
-      detail: 'Best visible scenario clears the current runway target.',
+      detail: 'The best cash idea covers the cash goal.',
     }
   }
 
@@ -235,7 +235,7 @@ export function summarizeCashRunway(
     bestScenarioNetCash,
     shortfallAmount: targetAmount - bestScenarioNetCash,
     label: 'Short',
-    detail: 'Best visible scenario does not yet cover the runway target.',
+    detail: 'The best cash idea is still below the cash goal.',
   }
 }
 

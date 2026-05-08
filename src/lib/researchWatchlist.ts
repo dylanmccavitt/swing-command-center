@@ -42,12 +42,12 @@ const SCORE_CHECKS: ScoreCheck[] = [
     isComplete: (card) => hasText(card.research.thesis),
   },
   {
-    label: 'Watch list',
+    label: 'What to watch',
     points: 10,
     isComplete: (card) => hasText(card.research.catalyst),
   },
   {
-    label: 'Thesis break',
+    label: 'What changes my mind',
     points: 15,
     isComplete: (card) => hasText(card.research.invalidation),
   },
@@ -57,7 +57,7 @@ const SCORE_CHECKS: ScoreCheck[] = [
     isComplete: (card) => hasText(card.research.riskNotes),
   },
   {
-    label: 'Entry/risk/analyst targets',
+    label: 'Entry, risk, targets',
     points: 15,
     isComplete: (card) =>
       hasText(card.research.plannedEntry) &&
@@ -65,7 +65,7 @@ const SCORE_CHECKS: ScoreCheck[] = [
       hasText(card.research.target),
   },
   {
-    label: 'Setup trigger/risk',
+    label: 'Entry and risk plan',
     points: 20,
     isComplete: (card) =>
       hasText(card.tradeSetup.entryTrigger) &&
@@ -74,7 +74,7 @@ const SCORE_CHECKS: ScoreCheck[] = [
       hasText(card.tradeSetup.maxLoss),
   },
   {
-    label: 'Scale-out/time horizon',
+    label: 'Take-profit and timing',
     points: 10,
     isComplete: (card) =>
       hasText(card.tradeSetup.plannedScaleOut) &&
@@ -175,15 +175,15 @@ function getScoreStatusLabel(score: number): string {
   const percent = Math.round((score / MAX_SCORE) * 100)
 
   if (percent >= 80) {
-    return 'Manual review ready'
+    return 'Ready to review'
   }
 
   if (percent >= 55) {
-    return 'Setup draft'
+    return 'Setup started'
   }
 
   if (percent > 0) {
-    return 'Research draft'
+    return 'Research started'
   }
 
   return 'Needs thesis'

@@ -5,7 +5,7 @@ import { estimateTaxReserve } from './profitLock'
 import type { TargetStopScenario } from './scenarioPlanner'
 
 export const TRADE_JOURNAL_DISCLOSURE =
-  'Manual planning checklist only. No broker credentials, no Robinhood connection, no order execution, and no automated trading. Tax-helper export is a planning summary only, not a filing document or tax advice.'
+  'Manual checklist only. No broker credentials, no Robinhood connection, no order execution, and no automated trading. Tax review export is only a planning summary, not a filing document or tax advice.'
 
 export type ManualTradeTicketSource = 'profit_lock' | 'trade_setup'
 
@@ -100,7 +100,7 @@ export const DEFAULT_PAY_YOURSELF_RULE: PayYourselfRule = {
 }
 
 const TRADE_SETUP_NEEDS_INPUT_REASON =
-  'Enter planned entry, shares, stop basis, and target context before this setup becomes a manual checklist.'
+  'Enter entry, shares, stop, and target before this becomes a usable checklist.'
 
 export function buildManualTradeTicketFromProfitLock(input: {
   symbol: string
@@ -119,8 +119,8 @@ export function buildManualTradeTicketFromProfitLock(input: {
     name: input.name,
     action:
       status === 'ready'
-        ? 'Manual trim / sale review'
-        : 'Manual scenario needs input',
+        ? 'Review a possible trim / sale'
+        : 'Needs more details',
     estimatedShares:
       input.ticket.sharesToSell > 0 ? input.ticket.sharesToSell : null,
     estimatedCashRaised: positiveAmount(input.ticket.estimatedProceeds),
@@ -130,11 +130,11 @@ export function buildManualTradeTicketFromProfitLock(input: {
     reason: `${input.ticket.title}. ${input.ticket.description}`,
     invalidation:
       input.invalidation?.trim() ||
-      'Skip if share count, price, cost basis, tax reserve, or concentration target changed before manual review.',
+      'Skip if shares, price, average cost, tax reserve, or target size changed before review.',
     checklist: [
-      'Verify current quote, shares, and average cost manually before acting.',
-      'Review reserve estimate and cash target before entering anything in Robinhood.',
-      'Record the actual fill, realized P/L, and tax-prep notes after execution.',
+      'Check the quote, shares, and average cost before doing anything.',
+      'Check the reserve estimate and cash goal before entering anything in Robinhood.',
+      'After any fill, record the actual price, realized P/L, and tax notes.',
     ],
     disclosure: TRADE_JOURNAL_DISCLOSURE,
   }
@@ -177,8 +177,8 @@ export function buildManualTradeTicketFromTradeSetup(input: {
     symbol: input.card.symbol,
     name: input.card.name,
     action: isCurrentHolding
-      ? 'Manual scale-out setup review'
-      : 'Manual watchlist setup review',
+      ? 'Review a possible scale-out'
+      : 'Review a possible watchlist trade',
     estimatedShares,
     estimatedCashRaised,
     estimatedCashSpent,
@@ -187,9 +187,9 @@ export function buildManualTradeTicketFromTradeSetup(input: {
     reason: buildTradeSetupReason(input.card, input.scenario, status),
     invalidation: buildTradeSetupInvalidation(input.card, input.scenario),
     checklist: [
-      'Confirm the setup still matches the thesis and source notes.',
-      'Verify entry, stop, target, and share sizing manually.',
-      'Use the journal after any fill to record the actual outcome.',
+      'Check that the setup still matches the research notes.',
+      'Verify entry, stop, target, and share size yourself.',
+      'After any fill, use the journal to record what actually happened.',
     ],
     disclosure: TRADE_JOURNAL_DISCLOSURE,
   }
@@ -247,10 +247,10 @@ export function buildJournalEntryFromTicket(
     payYourselfAmount,
     notes:
       input.notes ??
-      `${ticket.action}. Reason: ${ticket.reason}. Invalidation: ${ticket.invalidation}`,
+      `${ticket.action}. Reason: ${ticket.reason}. Cancel if: ${ticket.invalidation}`,
     taxPrepNotes:
       input.taxPrepNotes ??
-      'Planning entry only. Replace estimates with actual fill, lot, and broker statement details before tax-helper review.',
+      'Planning entry only. Replace estimates with actual fill, lot, and broker statement details before tax review.',
   }
 }
 
@@ -419,14 +419,14 @@ function buildTradeSetupReason(
 
   const reasonParts = [
     card.tradeSetup.entryTrigger
-      ? `Entry trigger: ${card.tradeSetup.entryTrigger}`
-      : `Planning entry: ${formatMoney(scenario.plannedEntry.value)}`,
+      ? `Entry idea: ${card.tradeSetup.entryTrigger}`
+      : `Planned entry: ${formatMoney(scenario.plannedEntry.value)}`,
     card.tradeSetup.target
-      ? `Target context: ${card.tradeSetup.target}`
+      ? `Target: ${card.tradeSetup.target}`
       : `First target: ${formatMoney(scenario.firstTarget.value)}`,
     card.tradeSetup.plannedScaleOut
-      ? `Scale-out: ${card.tradeSetup.plannedScaleOut}`
-      : `Scale-out estimate: ${formatNumber(scenario.trimShares.value)} shares`,
+      ? `Take-profit plan: ${card.tradeSetup.plannedScaleOut}`
+      : `Estimated shares to trim: ${formatNumber(scenario.trimShares.value)}`,
     `Time horizon: ${scenario.timeHorizon}`,
   ]
 
@@ -451,7 +451,7 @@ function buildTradeSetupInvalidation(
     )}.`
   }
 
-  return 'Pause if thesis, price, source notes, or risk inputs change before manual action.'
+  return 'Pause if the thesis, price, source notes, or risk inputs change before you act.'
 }
 
 function isTradeSetupTicketReady(

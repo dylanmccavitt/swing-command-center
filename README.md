@@ -6,11 +6,13 @@ manual swing trades.
 It helps me:
 
 - see current holdings and watchlist movement
+- add the stocks I actually want to track
 - enter my own shares and cost basis
-- review concentration and profit-lock scenarios
+- review position size and ways to lock in gains
 - draft manual trade checklists
 - journal planned trades, executed trades, mistakes, results, realized P/L, and
-  tax-prep notes
+  tax notes
+- plan where realized profit could go after reserve and paying myself
 - queue stock research prompts for Codex or ChatGPT, then import reviewed
   research notes back into the dashboard
 
@@ -60,14 +62,15 @@ Do not commit `.env.local`.
 
 ## How I Use It
 
-1. Enter shares and average cost for the holdings I want to model.
-2. Review portfolio value, unrealized P/L, concentration, and watchlist
+1. Add the holdings I want to model, then enter shares and average cost.
+2. Review portfolio value, unrealized P/L, position size, and watchlist
    movement.
-3. Use the scenario desk to draft profit-lock or target/stop plans.
-4. Turn scenarios into manual trade tickets.
+3. Use the plan builder to draft gain-lock or price plans.
+4. Turn plans into manual trade tickets.
 5. Add journal entries after planning or manually executing a trade.
-6. Export journal data when I want a tax-helper review summary.
-7. Use the Codex research queue when I want a structured research prompt and an
+6. Review the profit cash plan after realized gains are logged.
+7. Export journal data when I want a tax review summary.
+8. Use the Codex research queue when I want a structured research prompt and an
    import path for reviewed notes.
 
 ## Checks
