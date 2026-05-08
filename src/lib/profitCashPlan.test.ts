@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PortfolioPosition } from './portfolio'
 import type { ResearchCandidateScore } from './researchWatchlist'
+import type { BuyingPowerSummary } from './sellFills'
 import type { RealizedProfitSummary } from './tradeJournal'
 import {
   buildProfitCashPlan,
@@ -63,6 +64,46 @@ describe('profit cash plan', () => {
     })
   })
 
+  it('feeds remaining filled-sell buying power into reinvest review rows', () => {
+    const plan = buildProfitCashPlan({
+      buyingPower: buildBuyingPower({
+        startingCash: 100,
+        filledSellProceeds: 598,
+        taxReserveSetAside: 49.5,
+        payYourselfSetAside: 7.425,
+        manuallyReinvestedCash: 50,
+        remainingCashAvailable: 591.075,
+      }),
+      positions: [
+        buildPosition({
+          symbol: 'AAPL',
+          name: 'Apple',
+          currentPrice: 100,
+          concentrationLabel: 'Within rules',
+        }),
+      ],
+      researchScores: [
+        buildScore({
+          symbol: 'AAPL',
+          name: 'Apple',
+          scorePercent: 70,
+          seedType: 'current_holding',
+        }),
+      ],
+    })
+
+    const holding = plan.candidates.find((candidate) => candidate.symbol === 'AAPL')
+
+    expect(plan.sourceLabel).toBe('Filled sell buying power')
+    expect(plan.startingCash).toBe(100)
+    expect(plan.filledSellProceeds).toBe(598)
+    expect(plan.reserveSetAside).toBe(49.5)
+    expect(plan.payYourselfAmount).toBe(7.425)
+    expect(plan.manuallyReinvestedCash).toBe(50)
+    expect(plan.cashToPlan).toBe(591.075)
+    expect(holding?.estimatedShares).toBeCloseTo(5.91075)
+  })
+
   it('keeps profit routing copy manual and non-advisory', () => {
     const plan = buildProfitCashPlan({
       summary: buildSummary({
@@ -114,6 +155,34 @@ function buildSummary(
     loggedPayYourselfAmount: 0,
     remainingPayYourselfAmount: 0,
     taxPrepEntryCount: 0,
+    ...overrides,
+  }
+}
+
+function buildBuyingPower(
+  overrides: Partial<BuyingPowerSummary> = {},
+): BuyingPowerSummary {
+  return {
+    startingCash: 0,
+    filledSellProceeds: 0,
+    costBasisRemoved: 0,
+    realizedGainLoss: 0,
+    taxReserveSetAside: 0,
+    payYourselfSetAside: 0,
+    manuallyReinvestedCash: 0,
+    remainingCashAvailable: 0,
+    filledSellCount: 0,
+    pendingSellCount: 0,
+    ignoredSellCount: 0,
+    missingInputCount: 0,
+    statusCounts: {
+      planned: 0,
+      ordered: 0,
+      filled: 0,
+      canceled: 0,
+      reviewed: 0,
+    },
+    disclosure: 'Manual planning only.',
     ...overrides,
   }
 }

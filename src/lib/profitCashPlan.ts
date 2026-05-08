@@ -1,9 +1,10 @@
 import type { PortfolioPosition } from './portfolio'
 import type { ResearchCandidateScore } from './researchWatchlist'
+import type { BuyingPowerSummary } from './sellFills'
 import type { RealizedProfitSummary } from './tradeJournal'
 
 export const PROFIT_CASH_PLAN_DISCLOSURE =
-  'Manual planning only. This does not recommend buys or sells, move money automatically, connect to a broker, or provide tax advice.'
+  'Manual planning only. This uses filled-sell buying power when provided. It does not recommend buys or sells, move money automatically, connect to a broker, or provide tax advice.'
 
 export type ProfitCashCandidateKind = 'current_holding' | 'watchlist' | 'cash'
 
@@ -23,25 +24,27 @@ export type ProfitCashCandidate = {
 
 export type ProfitCashPlan = {
   profitAfterReserve: number
+  startingCash: number
+  filledSellProceeds: number
+  reserveSetAside: number
   payYourselfAmount: number
+  manuallyReinvestedCash: number
   cashToPlan: number
+  sourceLabel: string
   candidates: ProfitCashCandidate[]
   disclosure: string
 }
 
 export function buildProfitCashPlan(input: {
-  summary: RealizedProfitSummary
+  summary?: RealizedProfitSummary
+  buyingPower?: BuyingPowerSummary
   positions: readonly PortfolioPosition[]
   researchScores: readonly ResearchCandidateScore[]
   quotesBySymbol?: ReadonlyMap<string, { price: number | null } | undefined>
   watchlistLimit?: number
 }): ProfitCashPlan {
-  const profitAfterReserve = positiveAmount(input.summary.profitAfterReserve)
-  const payYourselfAmount = Math.min(
-    profitAfterReserve,
-    positiveAmount(input.summary.recommendedPayYourselfAmount),
-  )
-  const cashToPlan = Math.max(0, profitAfterReserve - payYourselfAmount)
+  const cashSource = buildCashSource(input.summary, input.buyingPower)
+  const { cashToPlan, payYourselfAmount, profitAfterReserve } = cashSource
   const scoreBySymbol = new Map(
     input.researchScores.map((score) => [score.symbol, score]),
   )
@@ -69,14 +72,70 @@ export function buildProfitCashPlan(input: {
 
   return {
     profitAfterReserve,
+    startingCash: cashSource.startingCash,
+    filledSellProceeds: cashSource.filledSellProceeds,
+    reserveSetAside: cashSource.reserveSetAside,
     payYourselfAmount,
+    manuallyReinvestedCash: cashSource.manuallyReinvestedCash,
     cashToPlan,
+    sourceLabel: cashSource.sourceLabel,
     candidates: [
       ...holdingCandidates,
       ...watchlistCandidates,
       buildCashCandidate(cashToPlan),
     ],
     disclosure: PROFIT_CASH_PLAN_DISCLOSURE,
+  }
+}
+
+function buildCashSource(
+  summary: RealizedProfitSummary | undefined,
+  buyingPower: BuyingPowerSummary | undefined,
+): {
+  profitAfterReserve: number
+  startingCash: number
+  filledSellProceeds: number
+  reserveSetAside: number
+  payYourselfAmount: number
+  manuallyReinvestedCash: number
+  cashToPlan: number
+  sourceLabel: string
+} {
+  if (buyingPower) {
+    const cashBeforePayYourself = Math.max(
+      0,
+      buyingPower.startingCash +
+        buyingPower.filledSellProceeds -
+        buyingPower.taxReserveSetAside,
+    )
+
+    return {
+      profitAfterReserve: cashBeforePayYourself,
+      startingCash: buyingPower.startingCash,
+      filledSellProceeds: buyingPower.filledSellProceeds,
+      reserveSetAside: buyingPower.taxReserveSetAside,
+      payYourselfAmount: buyingPower.payYourselfSetAside,
+      manuallyReinvestedCash: buyingPower.manuallyReinvestedCash,
+      cashToPlan: buyingPower.remainingCashAvailable,
+      sourceLabel: 'Filled sell buying power',
+    }
+  }
+
+  const profitAfterReserve = positiveAmount(summary?.profitAfterReserve ?? 0)
+  const payYourselfAmount = Math.min(
+    profitAfterReserve,
+    positiveAmount(summary?.recommendedPayYourselfAmount ?? 0),
+  )
+
+  return {
+    profitAfterReserve,
+    startingCash: 0,
+    filledSellProceeds: 0,
+    reserveSetAside: positiveAmount(summary?.taxReserveEstimate ?? 0),
+    payYourselfAmount,
+    manuallyReinvestedCash: 0,
+    cashToPlan: Math.max(0, profitAfterReserve - payYourselfAmount),
+    sourceLabel: 'Journal profit summary',
   }
 }
 

@@ -13,9 +13,10 @@ combines selected holdings or research cards with editable price, risk, trim,
 support, and time-horizon inputs to draft manual planning levels with
 calculation reasons. Manual trade-ticket and journal helpers convert
 profit-lock scenarios and trade setups into local checklist tickets,
-browser-session journal rows, realized P/L summaries, configurable
-pay-yourself estimates, profit-cash planning rows, and exportable tax-helper
-review JSON. The research desk can run a typed
+browser-session journal rows, legacy realized P/L summaries, configurable
+pay-yourself controls, and exportable review notes. Manual sell-fill helpers
+are the source of truth for actual realized P/L, pay-yourself, buying power,
+and reinvestable cash. The research desk can run a typed
 research-provider flow for one symbol or the selected AI-stack layer, then
 draft editable research fields with visible source URLs, timestamps, and review
 state. It can also queue a local Codex/ChatGPT research request JSON and import
@@ -42,10 +43,13 @@ AI-drafted / Needs review.
   planned entry, stop level, stop-limit buffer, first target, stretch target,
   trim size, proceeds, gain/loss, and remaining position.
 - `src/lib/tradeJournal.ts`: manual trade-ticket, journal-entry, realized P/L
-  summary, pay-yourself, and tax-helper export helpers.
-- `src/lib/profitCashPlan.ts`: manual helper that calculates profit cash left
-  after reserve and pay-yourself, then lists current holdings, research ideas,
-  and cash as review choices.
+  summary, pay-yourself, and legacy tax-helper export helpers.
+- `src/lib/sellFills.ts`: manual sell-fill status model, filled-sell realized
+  P/L math, buying-power summary, local CSV/JSON import parser, and planning
+  export shape.
+- `src/lib/profitCashPlan.ts`: manual helper that feeds remaining filled-sell
+  buying power into current holdings, research ideas, and cash as review
+  choices.
 - `src/lib/cockpit.ts`: first-screen derived summaries, top profit-lock
   scenario ranking, allocation/gain/concentration chart rows, and symbol color
   mapping.
@@ -94,6 +98,12 @@ AI-drafted / Needs review.
   export fields, but they must not store credentials, connect to Robinhood,
   execute orders, automate trading, or present export JSON as a tax filing
   document or tax advice.
+- Sell-fill boundary: sell records are manual browser-session rows or local
+  CSV/JSON imports only. Planned, ordered, and canceled sells stay out of
+  realized P/L and buying-power math. Filled and reviewed sells may calculate
+  cash raised, cost basis removed, realized gain/loss, reserve, pay-yourself,
+  and reinvestable cash, but the app must not invent missing shares, fill
+  prices, cost basis, fees, dates, sources, or references.
 - Research boundary: AI-stack candidate scores only measure whether user-editable
   thesis/setup fields are filled. They must not be framed as an AI model,
   guaranteed recommendation, ranking of expected returns, or automated trade
@@ -139,25 +149,28 @@ AI-drafted / Needs review.
     estimated cash raised or spent, estimated realized gain, tax reserve,
     reason, invalidation, and checklist copy.
 12. The user can add local journal entries for planned, executed, mistake, and
-    result states; edit realized P/L, reserve, pay-yourself, notes, and tax-prep
-    notes; review the realized-profit summary; and export JSON for a tax-helper
-    review.
-13. Profit-cash planning subtracts reserve and the configured pay-yourself
-    amount from realized trading profit, then lists current holdings,
+    result states; edit notes and legacy review fields; and keep checklist
+    context separate from actual filled-sell math.
+13. The user can add manual sell fills, mark sells planned/ordered/filled/
+    canceled/reviewed, import local CSV/JSON sell records, enter starting cash
+    and manually marked reinvested cash, then review buying power from filled
+    and reviewed sells only.
+14. Reinvest-cash planning uses remaining filled-sell buying power after reserve,
+    pay-yourself, and manually marked reinvestments, then lists current holdings,
     watchlist/research ideas, and cash as manual places to review.
-14. Research watchlist helpers group current holdings and placeholder candidates
-   by AI-stack layer, calculate manual checklist completeness, and filter the
-   candidate list by layer, score, holding status, and missing inputs.
-15. The user can run research for the selected symbol or selected layer. The
+15. Research watchlist helpers group current holdings and placeholder candidates
+    by AI-stack layer, calculate manual checklist completeness, and filter the
+    candidate list by layer, score, holding status, and missing inputs.
+16. The user can run research for the selected symbol or selected layer. The
     research provider returns recent-news, investor, filing, earnings, and
     sector-context source metadata; the app drafts thesis, catalyst,
     invalidation, risk notes, review date, and source notes into the editable
     card.
-16. The user can queue a Codex research request for the selected symbol. The app
+17. The user can queue a Codex research request for the selected symbol. The app
     creates a structured request JSON for manual worker processing, then can
     import a local result JSON only after schema, symbol/request, source
     metadata, and non-recommendation validation pass.
-17. Tests verify that holding summaries follow the current user-provided list,
+18. Tests verify that holding summaries follow the current user-provided list,
     do not invent lot data, and that portfolio/profit-lock/cockpit math remains
     stable. Research-provider tests cover source metadata, stale/empty states,
     draft normalization, and non-recommendation copy. Codex queue tests cover
@@ -167,8 +180,10 @@ AI-drafted / Needs review.
     long-position stops, and non-recommendation copy. Trade-journal tests cover
     ticket generation, journal statuses and math, realized-profit summaries,
     pay-yourself rules, tax-helper export shape, and non-automation /
-    non-tax-advice copy. Profit-cash tests cover post-pay-yourself math,
-    candidate rows, and manual non-advisory copy.
+    non-tax-advice copy. Sell-fill tests cover status math, realized P/L,
+    buying-power summaries, import/export shape, and non-automation /
+    non-tax-advice copy. Profit-cash tests cover filled-sell buying-power
+    routing, candidate rows, and manual non-advisory copy.
 
 ## Important Invariants
 
@@ -189,9 +204,13 @@ AI-drafted / Needs review.
 - Manual trade tickets and journal rows are local browser-session checklists.
   They must include reviewable reasons and invalidation, must keep planned
   entries out of realized P/L math, and must not claim broker execution.
-- Pay-yourself estimates default to a small percentage of net realized trading
-  profit after reserve and remain configurable.
-- Profit-cash planning must remain a manual review list. It may show current
+- Sell fills are the source of truth for actual realized P/L, buying power, and
+  pay-yourself planning. Planned, ordered, and canceled sell rows do not affect
+  the math. Filled and reviewed rows can count only from user-entered or
+  locally imported values.
+- Pay-yourself estimates default to a small percentage of filled-sell gain after
+  reserve and remain configurable.
+- Reinvest-cash planning must remain a manual review list. It may show current
   holdings, watchlist cards, research completeness, estimated shares, and cash
   as a place to hold funds, but it must not recommend or execute buys/sells.
 - Tax-helper exports are planning review JSON only, not filing documents or tax
