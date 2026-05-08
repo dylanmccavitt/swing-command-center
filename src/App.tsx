@@ -37,6 +37,22 @@ import {
 } from './lib/marketData'
 import type { MarketDataSnapshot, MarketQuote } from './lib/marketData'
 import {
+  clearSwingLocalState,
+  loadSwingLocalState,
+  saveSwingLocalState,
+  type BuyingPowerForm,
+  type ManualLotInputs,
+  type PayYourselfForm,
+  type ResearchFiltersForm,
+  type ScenarioPlannerForm,
+  type ScenarioPlannerFormMap,
+  type SettingsForm,
+  type SwingLocalState,
+  type SwingLocalStateClearResult,
+  type SwingLocalStateLoadResult,
+  type SwingLocalStateSaveResult,
+} from './lib/localPersistence'
+import {
   buildPortfolioModel,
   buildPortfolioSeedSummary,
   DEFAULT_PORTFOLIO_SETTINGS,
@@ -132,59 +148,12 @@ import type {
 } from './lib/researchProvider'
 import './App.css'
 
-type ManualLotInputs = Record<
-  string,
-  {
-    shares: string
-    averageCost: string
-  }
->
-
 type HoldingForm = {
   symbol: string
   name: string
   stackLayer: AiStackLayerId
   shares: string
   averageCost: string
-}
-
-type SettingsForm = {
-  maxPositionWeightPercent: string
-  alertPositionWeightPercent: string
-  taxReserveRatePercent: string
-  taxReserveEnabled: boolean
-  cashRunwayDollars: string
-  activeTradingSleeveDollars: string
-}
-
-type ResearchFiltersForm = {
-  layer: AiStackLayerId | 'all'
-  minimumScore: string
-  holdingsOnly: boolean
-  needsInputOnly: boolean
-}
-
-type ScenarioPlannerForm = {
-  currentPrice: string
-  averageCost: string
-  shares: string
-  maxLossDollars: string
-  desiredRiskReward: string
-  targetGainPercent: string
-  trimPercent: string
-  supportPrice: string
-  stopLimitBufferPercent: string
-  timeHorizon: string
-}
-
-type ScenarioPlannerFormMap = Record<
-  string,
-  Partial<ScenarioPlannerForm>
->
-
-type PayYourselfForm = {
-  enabled: boolean
-  percentOfNetAfterReserve: string
 }
 
 type SellFillForm = {
@@ -199,11 +168,6 @@ type SellFillForm = {
   source: string
   reference: string
   notes: string
-}
-
-type BuyingPowerForm = {
-  startingCash: string
-  manuallyReinvestedCash: string
 }
 
 type SymbolLabel = {
@@ -270,6 +234,14 @@ type PriceMovementRow = {
   changePercent: number | null
   freshness: string
   color: string
+}
+
+type PersistenceMessageTone = 'ok' | 'warning' | 'error'
+
+type PersistenceMessage = {
+  tone: PersistenceMessageTone
+  title: string
+  detail: string
 }
 
 const DEFAULT_CASH_TARGET_AMOUNT = 1000
@@ -363,47 +335,63 @@ const DEFAULT_SETTINGS_FORM: SettingsForm = {
 }
 
 function App() {
+  const defaultLocalState = useMemo(() => buildDefaultSwingLocalState(), [])
+  const initialPersistence = useMemo(
+    () => loadSwingLocalState(getBrowserLocalStorage(), defaultLocalState),
+    [defaultLocalState],
+  )
+  const initialLocalState = initialPersistence.ok
+    ? initialPersistence.snapshot.state
+    : defaultLocalState
+  const [isPersistenceWriteEnabled, setIsPersistenceWriteEnabled] = useState(
+    () =>
+      initialPersistence.ok ||
+      initialPersistence.status === 'empty' ||
+      initialPersistence.status === 'unavailable',
+  )
+  const [persistenceMessage, setPersistenceMessage] =
+    useState<PersistenceMessage>(() =>
+      formatPersistenceLoadMessage(initialPersistence),
+    )
   const [holdings, setHoldings] = useState<SeedHolding[]>(() =>
-    seedHoldings.map((holding) => ({ ...holding })),
+    cloneHoldings(initialLocalState.holdings),
   )
   const [manualLots, setManualLots] = useState<ManualLotInputs>(() =>
-    Object.fromEntries(
-      seedHoldings.map((holding) => [
-        holding.symbol,
-        {
-          shares: '',
-          averageCost: '',
-        },
-      ]),
-    ),
+    cloneManualLots(initialLocalState.manualLots),
   )
   const [holdingForm, setHoldingForm] =
     useState<HoldingForm>(DEFAULT_HOLDING_FORM)
   const [settingsForm, setSettingsForm] =
-    useState<SettingsForm>(DEFAULT_SETTINGS_FORM)
+    useState<SettingsForm>(() => ({ ...initialLocalState.settingsForm }))
   const [selectedPlannerSymbol, setSelectedPlannerSymbol] = useState<string>(
-    seedWatchlist[0].symbol,
+    initialLocalState.selectedPlannerSymbol,
   )
   const [cashTargetInput, setCashTargetInput] = useState(
-    String(DEFAULT_CASH_TARGET_AMOUNT),
+    initialLocalState.cashTargetInput,
   )
   const [researchCards, setResearchCards] = useState<
     SeedWatchlistItem[]
-  >(() => cloneSeedWatchlist(seedWatchlist))
+  >(() => cloneSeedWatchlist(initialLocalState.researchCards))
   const [selectedResearchSymbol, setSelectedResearchSymbol] = useState(
-    seedWatchlist[0].symbol,
+    initialLocalState.selectedResearchSymbol,
   )
   const [researchFilters, setResearchFilters] = useState<ResearchFiltersForm>(
-    DEFAULT_RESEARCH_FILTERS,
+    () => ({ ...initialLocalState.researchFilters }),
   )
   const [scenarioPlannerForms, setScenarioPlannerForms] =
-    useState<ScenarioPlannerFormMap>({})
+    useState<ScenarioPlannerFormMap>(() =>
+      cloneScenarioPlannerForms(initialLocalState.scenarioPlannerForms),
+    )
   const [researchRuns, setResearchRuns] = useState<ResearchRunMap>({})
   const [codexQueue, setCodexQueue] = useState<CodexQueueMap>({})
   const [payYourselfForm, setPayYourselfForm] =
-    useState<PayYourselfForm>(DEFAULT_PAY_YOURSELF_FORM)
-  const [journalEntries, setJournalEntries] = useState<TradeJournalEntry[]>([])
-  const [sellFills, setSellFills] = useState<SellFillRecord[]>([])
+    useState<PayYourselfForm>(() => ({ ...initialLocalState.payYourselfForm }))
+  const [journalEntries, setJournalEntries] = useState<TradeJournalEntry[]>(
+    () => clonePlain(initialLocalState.journalEntries),
+  )
+  const [sellFills, setSellFills] = useState<SellFillRecord[]>(() =>
+    clonePlain(initialLocalState.sellFills),
+  )
   const [sellFillForm, setSellFillForm] = useState<SellFillForm>(
     DEFAULT_SELL_FILL_FORM,
   )
@@ -411,13 +399,62 @@ function App() {
   const [sellFillImportMessage, setSellFillImportMessage] = useState('')
   const [robinhoodImports, setRobinhoodImports] = useState<
     RobinhoodImportBatch[]
-  >([])
+  >(() => clonePlain(initialLocalState.robinhoodImports))
   const [robinhoodRows, setRobinhoodRows] = useState<RobinhoodNormalizedRow[]>(
-    [],
+    () => clonePlain(initialLocalState.robinhoodRows),
   )
   const [robinhoodImportMessage, setRobinhoodImportMessage] = useState('')
   const [buyingPowerForm, setBuyingPowerForm] =
-    useState<BuyingPowerForm>(DEFAULT_BUYING_POWER_FORM)
+    useState<BuyingPowerForm>(() => ({ ...initialLocalState.buyingPowerForm }))
+  const currentLocalState = useMemo<SwingLocalState>(
+    () => ({
+      holdings,
+      manualLots,
+      settingsForm,
+      cashTargetInput,
+      researchCards,
+      selectedResearchSymbol,
+      researchFilters,
+      selectedPlannerSymbol,
+      scenarioPlannerForms,
+      payYourselfForm,
+      journalEntries,
+      sellFills,
+      robinhoodImports,
+      robinhoodRows,
+      buyingPowerForm,
+    }),
+    [
+      buyingPowerForm,
+      cashTargetInput,
+      holdings,
+      journalEntries,
+      manualLots,
+      payYourselfForm,
+      researchCards,
+      researchFilters,
+      robinhoodImports,
+      robinhoodRows,
+      scenarioPlannerForms,
+      selectedPlannerSymbol,
+      selectedResearchSymbol,
+      sellFills,
+      settingsForm,
+    ],
+  )
+
+  useEffect(() => {
+    if (!isPersistenceWriteEnabled) {
+      return
+    }
+
+    const result = saveSwingLocalState(
+      getBrowserLocalStorage(),
+      currentLocalState,
+    )
+    setPersistenceMessage(formatPersistenceSaveMessage(result))
+  }, [currentLocalState, isPersistenceWriteEnabled])
+
   const summary = useMemo(() => buildPortfolioSeedSummary(holdings), [holdings])
   const symbolLabels = useMemo(
     () => buildSymbolLabels(holdings, researchCards),
@@ -919,6 +956,38 @@ function App() {
       ...current,
       [field]: value,
     }))
+  }
+
+  function resetLocalCockpitState() {
+    const nextState = buildDefaultSwingLocalState()
+    const result = clearSwingLocalState(getBrowserLocalStorage())
+
+    setHoldings(cloneHoldings(nextState.holdings))
+    setManualLots(cloneManualLots(nextState.manualLots))
+    setSettingsForm({ ...nextState.settingsForm })
+    setSelectedPlannerSymbol(nextState.selectedPlannerSymbol)
+    setCashTargetInput(nextState.cashTargetInput)
+    setResearchCards(cloneSeedWatchlist(nextState.researchCards))
+    setSelectedResearchSymbol(nextState.selectedResearchSymbol)
+    setResearchFilters({ ...nextState.researchFilters })
+    setScenarioPlannerForms(
+      cloneScenarioPlannerForms(nextState.scenarioPlannerForms),
+    )
+    setResearchRuns({})
+    setCodexQueue({})
+    setPayYourselfForm({ ...nextState.payYourselfForm })
+    setJournalEntries(clonePlain(nextState.journalEntries))
+    setSellFills(clonePlain(nextState.sellFills))
+    setSellFillForm(DEFAULT_SELL_FILL_FORM)
+    setSellFillImportText('')
+    setSellFillImportMessage('')
+    setRobinhoodImports(clonePlain(nextState.robinhoodImports))
+    setRobinhoodRows(clonePlain(nextState.robinhoodRows))
+    setRobinhoodImportMessage('')
+    setBuyingPowerForm({ ...nextState.buyingPowerForm })
+    setHoldingForm(DEFAULT_HOLDING_FORM)
+    setIsPersistenceWriteEnabled(result.ok || result.status === 'unavailable')
+    setPersistenceMessage(formatPersistenceClearMessage(result))
   }
 
   function addSellFill(event: FormEvent<HTMLFormElement>) {
@@ -1663,6 +1732,11 @@ function App() {
             Tax reserve is just an estimate for planning. It is not tax advice
             or filing math.
           </p>
+          <LocalPersistencePanel
+            isWriteDisabled={!isPersistenceWriteEnabled}
+            message={persistenceMessage}
+            onReset={resetLocalCockpitState}
+          />
         </section>
 
         <section className="cockpit-panel planner-panel">
@@ -1773,6 +1847,29 @@ function PanelHeading(props: { eyebrow: string; title: string; value: string }) 
         <h2>{props.title}</h2>
       </div>
       <span className="panel-value">{props.value}</span>
+    </div>
+  )
+}
+
+function LocalPersistencePanel(props: {
+  isWriteDisabled: boolean
+  message: PersistenceMessage
+  onReset: () => void
+}) {
+  return (
+    <div className={`local-state-panel ${props.message.tone}`}>
+      <div>
+        <strong>{props.message.title}</strong>
+        <span>{props.message.detail}</span>
+      </div>
+      <button className="inline-action-button" type="button" onClick={props.onReset}>
+        Reset local data
+      </button>
+      {props.isWriteDisabled ? (
+        <span className="local-state-warning">
+          Autosave paused until local data is reset.
+        </span>
+      ) : null}
     </div>
   )
 }
@@ -4276,6 +4373,146 @@ function SkeletonRows(props: { count: number }) {
       ))}
     </div>
   )
+}
+
+function buildDefaultSwingLocalState(): SwingLocalState {
+  return {
+    holdings: cloneHoldings(seedHoldings),
+    manualLots: Object.fromEntries(
+      seedHoldings.map((holding) => [
+        holding.symbol,
+        {
+          shares: '',
+          averageCost: '',
+        },
+      ]),
+    ),
+    settingsForm: { ...DEFAULT_SETTINGS_FORM },
+    cashTargetInput: String(DEFAULT_CASH_TARGET_AMOUNT),
+    researchCards: cloneSeedWatchlist(seedWatchlist),
+    selectedResearchSymbol: seedWatchlist[0].symbol,
+    researchFilters: { ...DEFAULT_RESEARCH_FILTERS },
+    selectedPlannerSymbol: seedWatchlist[0].symbol,
+    scenarioPlannerForms: {},
+    payYourselfForm: { ...DEFAULT_PAY_YOURSELF_FORM },
+    journalEntries: [],
+    sellFills: [],
+    robinhoodImports: [],
+    robinhoodRows: [],
+    buyingPowerForm: { ...DEFAULT_BUYING_POWER_FORM },
+  }
+}
+
+function cloneHoldings(holdings: readonly SeedHolding[]): SeedHolding[] {
+  return holdings.map((holding) => ({ ...holding }))
+}
+
+function cloneManualLots(manualLots: ManualLotInputs): ManualLotInputs {
+  return Object.fromEntries(
+    Object.entries(manualLots).map(([symbol, lot]) => [
+      symbol,
+      { ...lot },
+    ]),
+  )
+}
+
+function cloneScenarioPlannerForms(
+  forms: ScenarioPlannerFormMap,
+): ScenarioPlannerFormMap {
+  return Object.fromEntries(
+    Object.entries(forms).map(([symbol, form]) => [symbol, { ...form }]),
+  )
+}
+
+function clonePlain<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T
+}
+
+function getBrowserLocalStorage() {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  try {
+    return window.localStorage
+  } catch {
+    return null
+  }
+}
+
+function formatPersistenceLoadMessage(
+  result: SwingLocalStateLoadResult,
+): PersistenceMessage {
+  if (result.ok) {
+    return {
+      tone: result.warnings.length > 0 ? 'warning' : 'ok',
+      title: result.warnings.length > 0 ? 'Local state repaired' : 'Local state loaded',
+      detail:
+        result.warnings.length > 0
+          ? `${result.warnings.length} missing field fallback was applied.`
+          : `Restored saved browser state from ${formatDateTime(
+              result.snapshot.savedAt,
+            )}.`,
+    }
+  }
+
+  if (result.status === 'empty') {
+    return {
+      tone: 'ok',
+      title: 'Local state ready',
+      detail: 'Changes in this browser will save locally.',
+    }
+  }
+
+  if (result.status === 'invalid' || result.status === 'unsupported') {
+    return {
+      tone: 'error',
+      title: 'Saved state blocked',
+      detail: `${result.message} Current seed data is shown until reset.`,
+    }
+  }
+
+  return {
+    tone: 'warning',
+    title: 'Local state unavailable',
+    detail: result.message,
+  }
+}
+
+function formatPersistenceSaveMessage(
+  result: SwingLocalStateSaveResult,
+): PersistenceMessage {
+  if (result.ok) {
+    return {
+      tone: 'ok',
+      title: 'Local state saved',
+      detail: `Last save ${formatDateTime(result.snapshot.savedAt)}.`,
+    }
+  }
+
+  return {
+    tone: 'warning',
+    title: 'Local state not saved',
+    detail: result.message,
+  }
+}
+
+function formatPersistenceClearMessage(
+  result: SwingLocalStateClearResult,
+): PersistenceMessage {
+  if (result.ok) {
+    return {
+      tone: 'warning',
+      title: 'Local state reset',
+      detail: 'Saved browser data was cleared and the seed cockpit reloaded.',
+    }
+  }
+
+  return {
+    tone: 'error',
+    title: 'Local state not cleared',
+    detail: result.message,
+  }
 }
 
 function cloneSeedWatchlist(
