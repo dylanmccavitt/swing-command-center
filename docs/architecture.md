@@ -16,11 +16,13 @@ profit-lock scenarios and trade setups into local checklist tickets,
 browser-session journal rows, legacy realized P/L summaries, configurable
 pay-yourself controls, and exportable review notes. Manual sell-fill helpers
 are the source of truth for actual realized P/L, pay-yourself, buying power,
-and reinvestable cash. The research desk can run a typed
-research-provider flow for one symbol or the selected AI-stack layer, then
-draft editable research fields with visible source URLs, timestamps, and review
-state. It can also queue a local Codex/ChatGPT research request JSON and import
-a validated local result JSON into the same editable research card as
+and reinvestable cash. Robinhood CSV import helpers normalize local official
+account-activity and realized gain/loss files into review-gated rows before any
+accepted sells feed the sell-fill buying-power model. The research desk can run
+a typed research-provider flow for one symbol or the selected AI-stack layer,
+then draft editable research fields with visible source URLs, timestamps, and
+review state. It can also queue a local Codex/ChatGPT research request JSON and
+import a validated local result JSON into the same editable research card as
 AI-drafted / Needs review.
 
 ## Major Components
@@ -47,6 +49,9 @@ AI-drafted / Needs review.
 - `src/lib/sellFills.ts`: manual sell-fill status model, filled-sell realized
   P/L math, buying-power summary, local CSV/JSON import parser, and planning
   export shape.
+- `src/lib/robinhoodCsv.ts`: file-only Robinhood account activity and realized
+  gain/loss CSV parser, row normalizer, reconciliation statuses, accepted-row
+  sell-fill mapper, tax-planning buckets, and import-aware planning export.
 - `src/lib/profitCashPlan.ts`: manual helper that feeds remaining filled-sell
   buying power into current holdings, research ideas, and cash as review
   choices.
@@ -104,6 +109,14 @@ AI-drafted / Needs review.
   cash raised, cost basis removed, realized gain/loss, reserve, pay-yourself,
   and reinvestable cash, but the app must not invent missing shares, fill
   prices, cost basis, fees, dates, sources, or references.
+- Robinhood CSV boundary: Robinhood data enters through user-selected local CSV
+  files only. The app supports official account activity CSV files and realized
+  gain/loss CSV files, but it must not log in to Robinhood, scrape pages,
+  handle credentials, call unofficial Robinhood APIs, use the Robinhood Crypto
+  Trading API, execute orders, or auto-accept rows. Imported rows remain
+  normalized review rows until the user accepts them; accepted sell rows may map
+  into the sell-fill model, and realized gain/loss CSV values are preferred over
+  matching account-activity sells.
 - Research boundary: AI-stack candidate scores only measure whether user-editable
   thesis/setup fields are filled. They must not be framed as an AI model,
   guaranteed recommendation, ranking of expected returns, or automated trade
@@ -155,22 +168,35 @@ AI-drafted / Needs review.
     canceled/reviewed, import local CSV/JSON sell records, enter starting cash
     and manually marked reinvested cash, then review buying power from filled
     and reviewed sells only.
-14. Reinvest-cash planning uses remaining filled-sell buying power after reserve,
+14. The user can import official Robinhood account activity CSV files and
+    realized gain/loss CSV files. Imported rows normalize to buys, sells,
+    dividends, interest, transfers, fees, or unknown rows with reconciliation
+    states such as matched, needs review, missing basis, missing proceeds,
+    possible wash sale, and unsupported row.
+15. Robinhood imported rows must be accepted before they affect buying power,
+    pay-yourself, or reinvest cash. Accepted sell rows map into reviewed
+    sell-fill records; matching realized gain/loss rows take precedence over
+    account-activity sell rows for proceeds, basis, realized P/L, holding
+    period, and wash-sale fields.
+16. Robinhood tax-planning buckets aggregate accepted short-term and long-term
+    realized gain/loss, wash-sale disallowed losses, dividends/interest,
+    reserve estimate, pay-yourself set-aside, and remaining reinvestable cash.
+17. Reinvest-cash planning uses remaining filled-sell buying power after reserve,
     pay-yourself, and manually marked reinvestments, then lists current holdings,
     watchlist/research ideas, and cash as manual places to review.
-15. Research watchlist helpers group current holdings and placeholder candidates
+18. Research watchlist helpers group current holdings and placeholder candidates
     by AI-stack layer, calculate manual checklist completeness, and filter the
     candidate list by layer, score, holding status, and missing inputs.
-16. The user can run research for the selected symbol or selected layer. The
+19. The user can run research for the selected symbol or selected layer. The
     research provider returns recent-news, investor, filing, earnings, and
     sector-context source metadata; the app drafts thesis, catalyst,
     invalidation, risk notes, review date, and source notes into the editable
     card.
-17. The user can queue a Codex research request for the selected symbol. The app
+20. The user can queue a Codex research request for the selected symbol. The app
     creates a structured request JSON for manual worker processing, then can
     import a local result JSON only after schema, symbol/request, source
     metadata, and non-recommendation validation pass.
-18. Tests verify that holding summaries follow the current user-provided list,
+21. Tests verify that holding summaries follow the current user-provided list,
     do not invent lot data, and that portfolio/profit-lock/cockpit math remains
     stable. Research-provider tests cover source metadata, stale/empty states,
     draft normalization, and non-recommendation copy. Codex queue tests cover
@@ -182,7 +208,10 @@ AI-drafted / Needs review.
     pay-yourself rules, tax-helper export shape, and non-automation /
     non-tax-advice copy. Sell-fill tests cover status math, realized P/L,
     buying-power summaries, import/export shape, and non-automation /
-    non-tax-advice copy. Profit-cash tests cover filled-sell buying-power
+    non-tax-advice copy. Robinhood CSV tests cover CSV parsing, row
+    normalization, sell-fill mapping, reconciliation statuses, review/accept
+    gating, tax-planning buckets, import-aware export shape, and non-automation
+    / non-tax-advice copy. Profit-cash tests cover filled-sell buying-power
     routing, candidate rows, and manual non-advisory copy.
 
 ## Important Invariants
@@ -208,6 +237,11 @@ AI-drafted / Needs review.
   pay-yourself planning. Planned, ordered, and canceled sell rows do not affect
   the math. Filled and reviewed rows can count only from user-entered or
   locally imported values.
+- Robinhood imported rows do not affect buying-power, pay-yourself, reinvest
+  cash, or tax-planning buckets until accepted. Missing basis, proceeds, holding
+  period, wash-sale, fee, or tax fields must remain missing; the app can derive
+  a per-share fill price from imported proceeds and quantity, but must not
+  invent unavailable Robinhood data.
 - Pay-yourself estimates default to a small percentage of filled-sell gain after
   reserve and remain configurable.
 - Reinvest-cash planning must remain a manual review list. It may show current

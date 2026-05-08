@@ -60,7 +60,6 @@ import type {
 } from './lib/scenarioPlanner'
 import {
   buildBuyingPowerSummary,
-  buildSellFillPlanningExport,
   buildSellFillRows,
   parseSellFillImportText,
   SELL_FILL_DISCLOSURE,
@@ -71,6 +70,21 @@ import type {
   SellFillRow,
   SellFillStatus,
 } from './lib/sellFills'
+import {
+  buildRobinhoodPlanningExport,
+  buildRobinhoodTaxPlanningBuckets,
+  buildSellFillsFromAcceptedRobinhoodRows,
+  parseRobinhoodCsvFile,
+  ROBINHOOD_CSV_DISCLOSURE,
+  updateRobinhoodRowReviewState,
+} from './lib/robinhoodCsv'
+import type {
+  RobinhoodCsvReportKind,
+  RobinhoodImportBatch,
+  RobinhoodNormalizedRow,
+  RobinhoodReviewState,
+  RobinhoodTaxPlanningBuckets,
+} from './lib/robinhoodCsv'
 import {
   buildJournalEntryFromTicket,
   buildManualJournalEntry,
@@ -395,6 +409,13 @@ function App() {
   )
   const [sellFillImportText, setSellFillImportText] = useState('')
   const [sellFillImportMessage, setSellFillImportMessage] = useState('')
+  const [robinhoodImports, setRobinhoodImports] = useState<
+    RobinhoodImportBatch[]
+  >([])
+  const [robinhoodRows, setRobinhoodRows] = useState<RobinhoodNormalizedRow[]>(
+    [],
+  )
+  const [robinhoodImportMessage, setRobinhoodImportMessage] = useState('')
   const [buyingPowerForm, setBuyingPowerForm] =
     useState<BuyingPowerForm>(DEFAULT_BUYING_POWER_FORM)
   const summary = useMemo(() => buildPortfolioSeedSummary(holdings), [holdings])
@@ -606,25 +627,48 @@ function App() {
     () => buildRealizedProfitSummary(journalEntries, payYourselfRule),
     [journalEntries, payYourselfRule],
   )
+  const acceptedRobinhoodSellFills = useMemo(
+    () => buildSellFillsFromAcceptedRobinhoodRows(robinhoodRows),
+    [robinhoodRows],
+  )
+  const buyingPowerRecords = useMemo(
+    () => [...acceptedRobinhoodSellFills, ...sellFills],
+    [acceptedRobinhoodSellFills, sellFills],
+  )
   const sellFillRows = useMemo(
     () =>
-      buildSellFillRows(sellFills, {
+      buildSellFillRows(buyingPowerRecords, {
         settings: portfolioModel.settings,
         payYourselfRule,
       }),
-    [portfolioModel.settings, payYourselfRule, sellFills],
+    [buyingPowerRecords, portfolioModel.settings, payYourselfRule],
   )
   const buyingPowerSummary = useMemo(
     () =>
       buildBuyingPowerSummary({
-        records: sellFills,
+        records: buyingPowerRecords,
         startingCash: parseNumericInput(buyingPowerForm.startingCash) ?? 0,
         manuallyReinvestedCash:
           parseNumericInput(buyingPowerForm.manuallyReinvestedCash) ?? 0,
         settings: portfolioModel.settings,
         payYourselfRule,
       }),
-    [buyingPowerForm, portfolioModel.settings, payYourselfRule, sellFills],
+    [
+      buyingPowerForm,
+      buyingPowerRecords,
+      portfolioModel.settings,
+      payYourselfRule,
+    ],
+  )
+  const robinhoodTaxPlanning = useMemo(
+    () =>
+      buildRobinhoodTaxPlanningBuckets({
+        rows: robinhoodRows,
+        buyingPower: buyingPowerSummary,
+        settings: portfolioModel.settings,
+        payYourselfRule,
+      }),
+    [buyingPowerSummary, payYourselfRule, portfolioModel.settings, robinhoodRows],
   )
   const profitCashPlan = useMemo(
     () =>
@@ -957,6 +1001,45 @@ function App() {
     }
   }
 
+  async function importRobinhoodCsvFile(
+    file: File,
+    reportKind: RobinhoodCsvReportKind,
+  ) {
+    try {
+      const text = await file.text()
+      const result = parseRobinhoodCsvFile({
+        text,
+        fileName: file.name,
+        importedAt: new Date().toISOString(),
+        reportKind,
+      })
+      const batch = result.batch
+
+      if (batch) {
+        setRobinhoodImports((current) => [batch, ...current])
+      }
+
+      if (result.rows.length > 0) {
+        setRobinhoodRows((current) => [...result.rows, ...current])
+      }
+
+      setRobinhoodImportMessage(formatRobinhoodImportMessage(result))
+    } catch (error) {
+      setRobinhoodImportMessage(
+        getErrorMessage(error, 'Robinhood CSV file could not be read.'),
+      )
+    }
+  }
+
+  function updateRobinhoodReviewState(
+    rowId: string,
+    reviewState: RobinhoodReviewState,
+  ) {
+    setRobinhoodRows((current) =>
+      updateRobinhoodRowReviewState(current, rowId, reviewState),
+    )
+  }
+
   function addJournalEntryFromTicket(
     ticket: ManualTradeTicket,
     status: TradeJournalEntryStatus,
@@ -1033,16 +1116,16 @@ function App() {
 
   function exportTradeJournal() {
     const generatedAt = new Date().toISOString()
-    const payload = buildSellFillPlanningExport({
-      records: sellFills,
+    const payload = buildRobinhoodPlanningExport({
+      imports: robinhoodImports,
+      rows: robinhoodRows,
       buyingPower: buyingPowerSummary,
+      taxPlanning: robinhoodTaxPlanning,
       generatedAt,
-      settings: portfolioModel.settings,
-      payYourselfRule,
     })
 
     downloadJsonFile(
-      `swing-command-center-sell-fill-plan-${generatedAt.slice(0, 10)}.json`,
+      `swing-command-center-robinhood-plan-${generatedAt.slice(0, 10)}.json`,
       JSON.stringify(payload, null, 2),
     )
   }
@@ -1618,6 +1701,10 @@ function App() {
             entries={journalEntries}
             payYourselfForm={payYourselfForm}
             profitCashPlan={profitCashPlan}
+            robinhoodImportMessage={robinhoodImportMessage}
+            robinhoodImports={robinhoodImports}
+            robinhoodRows={robinhoodRows}
+            robinhoodTaxPlanning={robinhoodTaxPlanning}
             sellFillForm={sellFillForm}
             sellFillImportMessage={sellFillImportMessage}
             sellFillImportText={sellFillImportText}
@@ -1628,6 +1715,7 @@ function App() {
             onAddMistake={addManualMistakeEntry}
             onAddSellFill={addSellFill}
             onExport={exportTradeJournal}
+            onImportRobinhoodFile={importRobinhoodCsvFile}
             onImportSellFillFile={importSellFillsFromFile}
             onImportSellFills={importSellFillsFromText}
             onRemoveSellFill={removeSellFill}
@@ -1635,6 +1723,7 @@ function App() {
             onUpdateBuyingPower={updateBuyingPowerForm}
             onUpdateEntry={updateJournalEntry}
             onUpdatePayYourself={updatePayYourselfRule}
+            onUpdateRobinhoodReviewState={updateRobinhoodReviewState}
             onUpdateSellFillForm={updateSellFillForm}
             onUpdateSellFillImportText={setSellFillImportText}
             onUpdateSellFillStatus={updateSellFillStatus}
@@ -3024,6 +3113,10 @@ function TradeJournalDesk(props: {
   buyingPowerSummary: BuyingPowerSummary
   profitCashPlan: ProfitCashPlan
   payYourselfForm: PayYourselfForm
+  robinhoodImports: readonly RobinhoodImportBatch[]
+  robinhoodRows: readonly RobinhoodNormalizedRow[]
+  robinhoodImportMessage: string
+  robinhoodTaxPlanning: RobinhoodTaxPlanningBuckets
   onAddSellFill: (event: FormEvent<HTMLFormElement>) => void
   onAddEntry: (
     ticket: ManualTradeTicket,
@@ -3031,6 +3124,10 @@ function TradeJournalDesk(props: {
   ) => void
   onAddMistake: () => void
   onExport: () => void
+  onImportRobinhoodFile: (
+    file: File,
+    reportKind: RobinhoodCsvReportKind,
+  ) => void
   onImportSellFills: () => void
   onImportSellFillFile: (file: File) => void
   onRemoveSellFill: (id: string) => void
@@ -3048,6 +3145,10 @@ function TradeJournalDesk(props: {
     field: keyof PayYourselfForm,
     value: string | boolean,
   ) => void
+  onUpdateRobinhoodReviewState: (
+    rowId: string,
+    reviewState: RobinhoodReviewState,
+  ) => void
   onUpdateSellFillForm: (field: SellFillFormField, value: string) => void
   onUpdateSellFillImportText: (value: string) => void
   onUpdateSellFillStatus: (id: string, status: SellFillStatus) => void
@@ -3061,14 +3162,20 @@ function TradeJournalDesk(props: {
         form={props.sellFillForm}
         importMessage={props.sellFillImportMessage}
         importText={props.sellFillImportText}
+        robinhoodImportMessage={props.robinhoodImportMessage}
+        robinhoodImports={props.robinhoodImports}
+        robinhoodRows={props.robinhoodRows}
+        robinhoodTaxPlanning={props.robinhoodTaxPlanning}
         rows={props.sellFillRows}
         onAddSellFill={props.onAddSellFill}
         onImportFile={props.onImportSellFillFile}
+        onImportRobinhoodFile={props.onImportRobinhoodFile}
         onImportText={props.onImportSellFills}
         onRemoveSellFill={props.onRemoveSellFill}
         onUpdateBuyingPower={props.onUpdateBuyingPower}
         onUpdateForm={props.onUpdateSellFillForm}
         onUpdateImportText={props.onUpdateSellFillImportText}
+        onUpdateRobinhoodReviewState={props.onUpdateRobinhoodReviewState}
         onUpdateStatus={props.onUpdateSellFillStatus}
       />
 
@@ -3099,11 +3206,13 @@ function TradeJournalDesk(props: {
             Log mistake
           </button>
           <button
-            disabled={props.sellFillRows.length === 0}
+            disabled={
+              props.sellFillRows.length === 0 && props.robinhoodRows.length === 0
+            }
             type="button"
             onClick={props.onExport}
           >
-            Export sell-fill plan JSON
+            Export planning JSON
           </button>
         </div>
       </div>
@@ -3172,13 +3281,25 @@ function SellFillWorkflowPanel(props: {
   form: SellFillForm
   importText: string
   importMessage: string
+  robinhoodImports: readonly RobinhoodImportBatch[]
+  robinhoodRows: readonly RobinhoodNormalizedRow[]
+  robinhoodImportMessage: string
+  robinhoodTaxPlanning: RobinhoodTaxPlanningBuckets
   buyingPowerForm: BuyingPowerForm
   onAddSellFill: (event: FormEvent<HTMLFormElement>) => void
   onImportText: () => void
   onImportFile: (file: File) => void
+  onImportRobinhoodFile: (
+    file: File,
+    reportKind: RobinhoodCsvReportKind,
+  ) => void
   onRemoveSellFill: (id: string) => void
   onUpdateForm: (field: SellFillFormField, value: string) => void
   onUpdateImportText: (value: string) => void
+  onUpdateRobinhoodReviewState: (
+    rowId: string,
+    reviewState: RobinhoodReviewState,
+  ) => void
   onUpdateStatus: (id: string, status: SellFillStatus) => void
   onUpdateBuyingPower: (
     field: BuyingPowerFormField,
@@ -3327,9 +3448,18 @@ function SellFillWorkflowPanel(props: {
         </div>
       </div>
 
+      <RobinhoodCsvPanel
+        importMessage={props.robinhoodImportMessage}
+        imports={props.robinhoodImports}
+        rows={props.robinhoodRows}
+        taxPlanning={props.robinhoodTaxPlanning}
+        onImportFile={props.onImportRobinhoodFile}
+        onUpdateReviewState={props.onUpdateRobinhoodReviewState}
+      />
+
       {props.rows.length === 0 ? (
         <EmptyState
-          detail="Add a sell manually or import local CSV/JSON. Planned, ordered, and canceled rows stay out of realized math."
+          detail="Add a sell manually or accept a reviewed Robinhood sell row. Pending rows stay out of realized math."
           title="No sell fills yet"
         />
       ) : (
@@ -3345,6 +3475,225 @@ function SellFillWorkflowPanel(props: {
         </div>
       )}
     </section>
+  )
+}
+
+function RobinhoodCsvPanel(props: {
+  imports: readonly RobinhoodImportBatch[]
+  rows: readonly RobinhoodNormalizedRow[]
+  importMessage: string
+  taxPlanning: RobinhoodTaxPlanningBuckets
+  onImportFile: (file: File, reportKind: RobinhoodCsvReportKind) => void
+  onUpdateReviewState: (
+    rowId: string,
+    reviewState: RobinhoodReviewState,
+  ) => void
+}) {
+  const acceptedCount = props.rows.filter(
+    (row) => row.reviewState === 'accepted',
+  ).length
+  const rejectedCount = props.rows.filter(
+    (row) => row.reviewState === 'rejected',
+  ).length
+
+  return (
+    <section className="robinhood-import-panel" aria-label="Robinhood CSV review">
+      <div className="setup-heading">
+        <strong>Robinhood CSV review</strong>
+        <span>
+          {props.imports.length} files · {acceptedCount} accepted ·{' '}
+          {rejectedCount} rejected
+        </span>
+      </div>
+      <p className="state-note">{ROBINHOOD_CSV_DISCLOSURE}</p>
+
+      <div className="robinhood-file-actions">
+        <label className="file-button">
+          Account activity CSV
+          <input
+            accept=".csv,text/csv,text/plain"
+            type="file"
+            onChange={(event: ChangeEvent<HTMLInputElement>) =>
+              importRobinhoodSelectedFile(
+                event,
+                'account_activity',
+                props.onImportFile,
+              )
+            }
+          />
+        </label>
+        <label className="file-button">
+          Realized gain/loss CSV
+          <input
+            accept=".csv,text/csv,text/plain"
+            type="file"
+            onChange={(event: ChangeEvent<HTMLInputElement>) =>
+              importRobinhoodSelectedFile(
+                event,
+                'realized_gain_loss',
+                props.onImportFile,
+              )
+            }
+          />
+        </label>
+        {props.importMessage && (
+          <span className="import-message">{props.importMessage}</span>
+        )}
+      </div>
+
+      {props.rows.length > 0 && (
+        <RobinhoodTaxBucketGrid buckets={props.taxPlanning} />
+      )}
+
+      {props.rows.length === 0 ? (
+        <EmptyState
+          detail="Import official Robinhood CSV files, then accept only rows you want included in planning math."
+          title="No Robinhood CSV rows"
+        />
+      ) : (
+        <div className="robinhood-row-list">
+          {props.rows.map((row) => (
+            <RobinhoodRowCard
+              key={row.id}
+              row={row}
+              onUpdateReviewState={props.onUpdateReviewState}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function RobinhoodTaxBucketGrid(props: {
+  buckets: RobinhoodTaxPlanningBuckets
+}) {
+  const { buckets } = props
+
+  return (
+    <div className="robinhood-tax-grid" aria-label="Robinhood tax planning buckets">
+      <ScenarioLevel
+        label="Short-term P/L"
+        reason={`${buckets.acceptedSellCount} accepted sell rows feed tax buckets.`}
+        tone={getSignedTone(buckets.shortTermGainLoss)}
+        value={formatSignedCurrency(buckets.shortTermGainLoss)}
+      />
+      <ScenarioLevel
+        label="Long-term P/L"
+        reason="Uses imported holding period when Robinhood provides it."
+        tone={getSignedTone(buckets.longTermGainLoss)}
+        value={formatSignedCurrency(buckets.longTermGainLoss)}
+      />
+      <ScenarioLevel
+        label="Wash-sale losses"
+        reason="Imported disallowed loss amount when present."
+        value={formatCurrency(buckets.washSaleDisallowedLosses)}
+      />
+      <ScenarioLevel
+        label="Dividends/interest"
+        reason={`${buckets.acceptedIncomeCount} accepted income rows.`}
+        value={formatCurrency(buckets.dividendsAndInterest)}
+      />
+      <ScenarioLevel
+        label="Reserve estimate"
+        reason="Planning reserve from accepted imported sells."
+        value={formatCurrency(buckets.reserveEstimate)}
+      />
+      <ScenarioLevel
+        label="Reinvest cash"
+        reason="Buying power after reserve, pay-yourself, and marked reinvestments."
+        value={formatCurrency(buckets.remainingReinvestableCash)}
+      />
+    </div>
+  )
+}
+
+function RobinhoodRowCard(props: {
+  row: RobinhoodNormalizedRow
+  onUpdateReviewState: (
+    rowId: string,
+    reviewState: RobinhoodReviewState,
+  ) => void
+}) {
+  const { row } = props
+
+  return (
+    <article className={`robinhood-row-card ${row.reviewState}`}>
+      <div className="journal-entry-topline">
+        <div>
+          <span className={`ticket-state ${row.reviewState}`}>
+            {getRobinhoodReviewStateLabel(row.reviewState)}
+          </span>
+          <strong>
+            {row.symbol || 'No symbol'} · {getRobinhoodKindLabel(row.kind)}
+          </strong>
+          <time>{row.tradeDate || row.settleDate || 'No date'}</time>
+        </div>
+        <span className={`reconciliation-pill ${row.reconciliationStatus}`}>
+          {getRobinhoodReconciliationLabel(row.reconciliationStatus)}
+        </span>
+      </div>
+
+      <div className="journal-entry-metrics">
+        <ScenarioLevel
+          label={row.kind === 'sell' ? 'Proceeds' : 'Amount'}
+          reason={row.description || row.activityType || 'Imported row'}
+          value={formatCurrency(row.kind === 'sell' ? row.proceeds : row.amount)}
+        />
+        <ScenarioLevel
+          label="Basis"
+          reason={
+            row.costBasis === null
+              ? 'Missing basis stays missing.'
+              : 'Imported basis.'
+          }
+          value={formatCurrency(row.costBasis)}
+        />
+        <ScenarioLevel
+          label="Realized P/L"
+          reason={
+            row.holdingPeriod === 'unknown'
+              ? row.reconciliationNotes.join(' ')
+              : getRobinhoodHoldingPeriodLabel(row.holdingPeriod)
+          }
+          tone={getSignedTone(row.realizedGainLoss ?? 0)}
+          value={formatSignedCurrency(row.realizedGainLoss ?? 0)}
+        />
+      </div>
+
+      <div className="ticket-copy">
+        <p>
+          <strong>Report</strong>
+          <span>
+            {getRobinhoodReportKindLabel(row.reportKind)} · row{' '}
+            {row.sourceRowIndex}
+          </span>
+        </p>
+        <p>
+          <strong>Review</strong>
+          <span>{row.reconciliationNotes.join(' ')}</span>
+        </p>
+      </div>
+
+      <div className="ticket-actions">
+        <label className="inline-select">
+          <span>Review</span>
+          <select
+            value={row.reviewState}
+            onChange={(event) =>
+              props.onUpdateReviewState(
+                row.id,
+                event.target.value as RobinhoodReviewState,
+              )
+            }
+          >
+            <option value="needs_review">Needs review</option>
+            <option value="accepted">Accepted</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </label>
+      </div>
+    </article>
   )
 }
 
@@ -4394,8 +4743,95 @@ function getSellFillStatusLabel(status: SellFillStatus): string {
   }
 }
 
+function getRobinhoodReportKindLabel(kind: RobinhoodCsvReportKind): string {
+  switch (kind) {
+    case 'account_activity':
+      return 'Account activity CSV'
+    case 'realized_gain_loss':
+      return 'Realized gain/loss CSV'
+  }
+}
+
+function getRobinhoodKindLabel(kind: RobinhoodNormalizedRow['kind']): string {
+  switch (kind) {
+    case 'buy':
+      return 'Buy'
+    case 'sell':
+      return 'Sell'
+    case 'dividend':
+      return 'Dividend'
+    case 'interest':
+      return 'Interest'
+    case 'transfer':
+      return 'Transfer'
+    case 'fee':
+      return 'Fee'
+    case 'unknown':
+      return 'Unknown'
+  }
+}
+
+function getRobinhoodReviewStateLabel(
+  reviewState: RobinhoodReviewState,
+): string {
+  switch (reviewState) {
+    case 'needs_review':
+      return 'Needs review'
+    case 'accepted':
+      return 'Accepted'
+    case 'rejected':
+      return 'Rejected'
+  }
+}
+
+function getRobinhoodReconciliationLabel(
+  status: RobinhoodNormalizedRow['reconciliationStatus'],
+): string {
+  switch (status) {
+    case 'matched':
+      return 'Matched'
+    case 'needs_review':
+      return 'Needs review'
+    case 'missing_basis':
+      return 'Missing basis'
+    case 'missing_proceeds':
+      return 'Missing proceeds'
+    case 'possible_wash_sale':
+      return 'Possible wash sale'
+    case 'unsupported_row':
+      return 'Unsupported row'
+  }
+}
+
+function getRobinhoodHoldingPeriodLabel(
+  holdingPeriod: RobinhoodNormalizedRow['holdingPeriod'],
+): string {
+  switch (holdingPeriod) {
+    case 'short_term':
+      return 'Short-term holding period'
+    case 'long_term':
+      return 'Long-term holding period'
+    case 'unknown':
+      return 'Holding period not imported'
+  }
+}
+
 function formatMissingFields(fields: readonly string[]): string {
   return fields.length > 0 ? `Missing ${fields.join(', ')}.` : ''
+}
+
+function importRobinhoodSelectedFile(
+  event: ChangeEvent<HTMLInputElement>,
+  reportKind: RobinhoodCsvReportKind,
+  onImportFile: (file: File, reportKind: RobinhoodCsvReportKind) => void,
+) {
+  const file = event.target.files?.[0]
+
+  if (file) {
+    onImportFile(file, reportKind)
+  }
+
+  event.target.value = ''
 }
 
 function formatSellFillImportMessage(result: {
@@ -4406,6 +4842,23 @@ function formatSellFillImportMessage(result: {
     result.records.length === 1
       ? 'Imported 1 sell record.'
       : `Imported ${result.records.length} sell records.`
+  const errorCopy =
+    result.errors.length > 0 ? ` ${result.errors.join(' ')}` : ''
+
+  return `${importedCopy}${errorCopy}`
+}
+
+function formatRobinhoodImportMessage(result: {
+  batch: RobinhoodImportBatch | null
+  rows: readonly RobinhoodNormalizedRow[]
+  errors: readonly string[]
+}): string {
+  const importedCopy =
+    result.batch && result.rows.length > 0
+      ? `Imported ${result.rows.length} ${getRobinhoodReportKindLabel(
+          result.batch.reportKind,
+        ).toLowerCase()} rows from ${result.batch.fileName}. Review rows before accepting.`
+      : 'No Robinhood rows imported.'
   const errorCopy =
     result.errors.length > 0 ? ` ${result.errors.join(' ')}` : ''
 
