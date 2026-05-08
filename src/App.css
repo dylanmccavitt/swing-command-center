@@ -945,8 +945,23 @@ dd {
   min-width: 0;
 }
 
+.holding-input-desk {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.holding-add-form {
+  display: grid;
+  grid-template-columns:
+    minmax(86px, 0.6fr) minmax(130px, 1fr) minmax(150px, 1fr)
+    minmax(92px, 0.7fr) minmax(100px, 0.7fr) max-content;
+  gap: 8px;
+  align-items: stretch;
+}
+
 .lot-row {
-  grid-template-columns: minmax(126px, 1.1fr) minmax(86px, 0.6fr) minmax(96px, 0.7fr) minmax(100px, max-content) minmax(90px, max-content);
+  grid-template-columns: minmax(126px, 1.1fr) minmax(86px, 0.6fr) minmax(96px, 0.7fr) minmax(100px, max-content) minmax(90px, max-content) max-content;
   gap: 10px;
 }
 
@@ -1296,9 +1311,30 @@ button:focus-visible {
   gap: 8px;
 }
 
+.profit-cash-plan {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.profit-cash-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.profit-cash-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .ticket-row,
 .manual-ticket-card,
-.journal-entry-card {
+.journal-entry-card,
+.profit-cash-card {
   display: grid;
   gap: 10px;
   min-width: 0;
@@ -1425,7 +1461,9 @@ button:focus-visible {
 }
 
 .ticket-actions button,
-.journal-actions button {
+.journal-actions button,
+.form-action-button,
+.inline-action-button {
   min-height: 34px;
   border: 1px solid var(--line);
   background: var(--soft);
@@ -1438,16 +1476,29 @@ button:focus-visible {
 }
 
 .ticket-actions button:hover:not(:disabled),
-.journal-actions button:hover:not(:disabled) {
+.journal-actions button:hover:not(:disabled),
+.form-action-button:hover:not(:disabled),
+.inline-action-button:hover:not(:disabled) {
   border-color: rgba(36, 107, 87, 0.45);
   background: rgba(36, 107, 87, 0.08);
 }
 
 .ticket-actions button:disabled,
-.journal-actions button:disabled {
+.journal-actions button:disabled,
+.form-action-button:disabled,
+.inline-action-button:disabled {
   color: var(--muted);
   cursor: not-allowed;
   opacity: 0.62;
+}
+
+.form-action-button {
+  min-height: 78px;
+  align-self: stretch;
+}
+
+.inline-action-button {
+  align-self: center;
 }
 
 .journal-actions {
@@ -1597,6 +1648,8 @@ dd {
   .level-output-grid,
   .journal-rule-grid,
   .journal-summary-grid,
+  .profit-cash-summary,
+  .profit-cash-grid,
   .journal-entry-metrics,
   .journal-edit-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1620,6 +1673,7 @@ dd {
   .setup-grid,
   .filter-grid,
   .settings-grid,
+  .holding-add-form,
   .planner-controls,
   .planner-input-grid,
   .level-output-grid,
@@ -1627,6 +1681,8 @@ dd {
   .manual-ticket-grid,
   .journal-rule-grid,
   .journal-summary-grid,
+  .profit-cash-summary,
+  .profit-cash-grid,
   .journal-entry-metrics,
   .journal-edit-grid {
     grid-template-columns: 1fr;

@@ -1,5 +1,5 @@
 export const SCENARIO_PLANNER_DISCLOSURE =
-  'Manual scenario for review only. Not a recommendation, guaranteed outcome, order ticket, tax advice, or buy/sell instruction.'
+  'Planning math only. Not a recommendation, guaranteed outcome, order ticket, tax advice, or buy/sell instruction.'
 
 export type ScenarioPlannerQuoteState =
   | 'fresh'
@@ -158,8 +158,8 @@ export function buildTargetStopScenario(
       value: currentPrice,
       reason:
         input.quoteState === 'manual'
-          ? 'Uses the manually edited current price as the planning entry.'
-          : 'Uses the editable current market price as the planning entry.',
+          ? 'Uses the price you typed in as the entry for this plan.'
+          : 'Uses the editable market price as the entry for this plan.',
     },
     stopLevel,
     stopLimit: {
@@ -168,23 +168,22 @@ export function buildTargetStopScenario(
       bufferPercent: stopLimitBufferPercent,
       note:
         stopLevel.value !== null && stopLimitPrice !== null
-          ? `Manual stop-limit note: trigger at stop, example limit ${formatMoney(
+          ? `Stop-limit note: trigger at the stop; example limit ${formatMoney(
               stopLimitPrice,
-            )} using a ${formatPercent(
+            )} with a ${formatPercent(
               stopLimitBufferPercent,
             )} buffer below the stop. Limit orders can miss fills.`
-          : 'Enter a valid stop before drafting a stop-limit buffer note.',
-      reason:
-        'Limit buffer is applied below the stop trigger for a long-position review scenario.',
+          : 'Enter a valid stop before adding a stop-limit buffer note.',
+      reason: 'The buffer sits below the stop for a long-position exit plan.',
     },
     firstTarget: {
       value: firstTarget,
       reason:
         riskPerShare !== null && desiredRiskReward !== null
-          ? `${formatNumber(desiredRiskReward)}R target from ${formatMoney(
+          ? `Target is ${formatNumber(desiredRiskReward)}x the ${formatMoney(
               riskPerShare,
             )} risk per share.`
-          : 'Enter a valid stop and risk/reward multiple to calculate the first target.',
+          : 'Enter a valid stop and reward target to calculate the first sell target.',
     },
     stretchTarget: {
       value: stretchTarget,
@@ -212,29 +211,29 @@ export function buildTargetStopScenario(
       value: estimatedProceeds,
       reason:
         trimShares !== null && firstTarget !== null
-          ? 'Trim shares multiplied by the first target level.'
-          : 'Needs trim shares and first target.',
+          ? 'Shares to trim multiplied by the first sell target.'
+          : 'Needs shares to trim and a first sell target.',
     },
     estimatedGainLoss: {
       value: estimatedGainLoss,
       reason:
         estimatedGainLoss !== null
-          ? 'Trim shares multiplied by first target minus average cost.'
-          : 'Average cost is required before gain/loss can be estimated.',
+          ? 'Shares to trim multiplied by first target minus average cost.'
+          : 'Add average cost before profit or loss can be estimated.',
     },
     remainingShares: {
       value: remainingShares,
       reason:
         remainingShares !== null
-          ? 'Current shares minus planned trim shares.'
+          ? 'Current shares minus shares to trim.'
           : 'Needs shares and trim percent.',
     },
     remainingPositionValue: {
       value: remainingPositionValue,
       reason:
         remainingPositionValue !== null
-          ? 'Remaining shares valued at the first target scenario level.'
-          : 'Needs remaining shares and first target.',
+          ? 'Remaining shares valued at the first sell target.'
+          : 'Needs remaining shares and a first sell target.',
     },
     timeHorizon: input.timeHorizon.trim() || 'Not set',
   }
@@ -254,7 +253,7 @@ function getScenarioIssues(
       code: 'missing_market_data',
       severity: 'missing',
       message:
-        'Market data is missing for this symbol; enter a manual current price before reviewing levels.',
+        'No price is loaded for this symbol. Enter a price before reviewing levels.',
     })
   }
 
@@ -263,7 +262,7 @@ function getScenarioIssues(
       code: 'stale_market_data',
       severity: 'warning',
       message:
-        'Current price is based on stale or delayed market data; refresh or edit it manually.',
+        'This price may be stale or delayed. Refresh it or type in the price you want to use.',
     })
   }
 
@@ -272,7 +271,7 @@ function getScenarioIssues(
       code: 'mock_market_data',
       severity: 'warning',
       message:
-        'Current price is using mock market data; treat the levels as layout-only until price is verified.',
+        'This is mock price data. Verify the price before trusting the plan.',
     })
   }
 
@@ -280,7 +279,7 @@ function getScenarioIssues(
     issues.push({
       code: 'missing_current_price',
       severity: 'missing',
-      message: 'Current price is required for planned entry and target math.',
+      message: 'Enter a current price to calculate entry and targets.',
     })
   }
 
@@ -288,7 +287,7 @@ function getScenarioIssues(
     issues.push({
       code: 'missing_average_cost',
       severity: 'missing',
-      message: 'Average cost is required for estimated gain/loss.',
+      message: 'Enter average cost to estimate profit or loss.',
     })
   }
 
@@ -296,7 +295,7 @@ function getScenarioIssues(
     issues.push({
       code: 'missing_shares',
       severity: 'missing',
-      message: 'Shares are required for trim size, proceeds, and remaining position.',
+      message: 'Enter shares to calculate trim size, cash raised, and shares left.',
     })
   }
 
@@ -305,7 +304,7 @@ function getScenarioIssues(
       code: 'missing_stop_basis',
       severity: 'missing',
       message:
-        'Enter either a support/reference price or max loss dollars to calculate the stop level.',
+        'Enter either a support price or max loss amount to calculate the stop.',
     })
   }
 
@@ -313,13 +312,13 @@ function getScenarioIssues(
     issues.push({
       code: 'invalid_risk_reward',
       severity: 'invalid',
-      message: 'Desired risk/reward must be greater than 0.',
+      message: 'Reward target must be greater than 0.',
     })
   } else if (positiveNumberOrNull(input.desiredRiskReward) === null) {
     issues.push({
       code: 'missing_risk_reward',
       severity: 'missing',
-      message: 'Desired risk/reward is required for the first target.',
+      message: 'Enter a reward target to calculate the first sell target.',
     })
   }
 
@@ -327,7 +326,7 @@ function getScenarioIssues(
     issues.push({
       code: 'missing_target_gain',
       severity: 'missing',
-      message: 'Target gain percent is required for the stretch target.',
+      message: 'Enter a target gain percent to calculate the higher target.',
     })
   }
 
@@ -341,7 +340,7 @@ function getScenarioIssues(
     issues.push({
       code: 'missing_trim_percent',
       severity: 'missing',
-      message: 'Trim percent is required for trim size and proceeds.',
+      message: 'Enter a trim percent to calculate shares and cash raised.',
     })
   }
 
@@ -353,8 +352,7 @@ function getScenarioIssues(
     issues.push({
       code: 'invalid_stop_level',
       severity: 'invalid',
-      message:
-        'Stop level for a long-position scenario must be below planned entry.',
+      message: 'For a long position, the stop needs to be below entry.',
     })
   }
 
@@ -369,7 +367,7 @@ function getScenarioIssues(
       code: 'invalid_stop_level',
       severity: 'invalid',
       message:
-        'Max loss dollars creates a stop at or below $0. Lower the risk budget or add a support price.',
+        'The max loss amount puts the stop at or below $0. Lower the max loss or add a support price.',
     })
   }
 
@@ -389,8 +387,7 @@ function getStopLevel(input: {
   ) {
     return {
       value: input.supportPrice,
-      reason:
-        'Uses the manual support/reference price because it is below planned entry.',
+      reason: 'Uses your support price because it is below entry.',
     }
   }
 
@@ -406,7 +403,7 @@ function getStopLevel(input: {
         value: stopLevel,
         reason: `${formatMoney(
           input.maxLossDollars,
-        )} risk budget divided by ${formatNumber(
+        )} max loss divided by ${formatNumber(
           input.shares,
         )} shares, subtracted from entry.`,
       }
@@ -415,8 +412,7 @@ function getStopLevel(input: {
 
   return {
     value: null,
-    reason:
-      'Needs a support/reference price below entry or a valid max-loss budget.',
+    reason: 'Needs a support price below entry or a valid max-loss budget.',
   }
 }
 

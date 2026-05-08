@@ -26,7 +26,7 @@ export const CODEX_RESEARCH_QUEUE_GUARDRAILS = [
   'Use browser, Chrome, ChatGPT, or Deep Research manually; do not call OpenAI APIs from this app.',
   'Do not include API keys, brokerage credentials, account numbers, private holdings, or copied paywalled article text.',
   'Do not log in to brokerage accounts, scrape brokerage data, place orders, or automate trading.',
-  'Return a concise stock brief for manual review only; source-report analyst ratings, target prices, and option strike context without making your own rating or buy/sell instructions.',
+  'Return a short stock brief for manual review only. Report analyst ratings, target prices, and option strike context from sources; do not make your own rating or buy/sell instructions.',
   'Use source URLs, accessed timestamps, and short source notes so the user can verify every claim.',
 ] as const
 

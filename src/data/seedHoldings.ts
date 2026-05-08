@@ -1,5 +1,5 @@
 export type SeedHolding = {
-  symbol: 'AAPL' | 'GOOG' | 'NVDA' | 'IREN'
+  symbol: string
   name: string
   stackLayer: string
   thesisTag: string

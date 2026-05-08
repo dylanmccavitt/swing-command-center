@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { CSSProperties, ChangeEvent } from 'react'
+import type { CSSProperties, ChangeEvent, FormEvent } from 'react'
 import { seedHoldings } from './data/seedHoldings'
+import type { SeedHolding } from './data/seedHoldings'
 import {
   AI_STACK_LAYERS,
+  buildManualWatchlistCard,
   getAiStackLayerLabel,
   seedWatchlist,
 } from './data/seedWatchlist'
@@ -40,6 +42,11 @@ import {
   DEFAULT_PORTFOLIO_SETTINGS,
 } from './lib/portfolio'
 import type { PortfolioSettings } from './lib/portfolio'
+import {
+  buildProfitCashPlan,
+  PROFIT_CASH_PLAN_DISCLOSURE,
+} from './lib/profitCashPlan'
+import type { ProfitCashCandidate, ProfitCashPlan } from './lib/profitCashPlan'
 import { buildProfitLockTickets } from './lib/profitLock'
 import type { ProfitLockTicket } from './lib/profitLock'
 import {
@@ -107,6 +114,14 @@ type ManualLotInputs = Record<
   }
 >
 
+type HoldingForm = {
+  symbol: string
+  name: string
+  stackLayer: AiStackLayerId
+  shares: string
+  averageCost: string
+}
+
 type SettingsForm = {
   maxPositionWeightPercent: string
   alertPositionWeightPercent: string
@@ -144,6 +159,11 @@ type ScenarioPlannerFormMap = Record<
 type PayYourselfForm = {
   enabled: boolean
   percentOfNetAfterReserve: string
+}
+
+type SymbolLabel = {
+  name: string
+  layer: string
 }
 
 type JournalEntryEditableField =
@@ -212,6 +232,14 @@ const DEFAULT_RESEARCH_FILTERS: ResearchFiltersForm = {
   needsInputOnly: false,
 }
 
+const DEFAULT_HOLDING_FORM: HoldingForm = {
+  symbol: '',
+  name: '',
+  stackLayer: 'hyperscalers',
+  shares: '',
+  averageCost: '',
+}
+
 const DEFAULT_SCENARIO_PLANNER_FORM: ScenarioPlannerForm = {
   currentPrice: '',
   averageCost: '',
@@ -235,7 +263,7 @@ const DEFAULT_PAY_YOURSELF_FORM: PayYourselfForm = {
 const IDLE_RESEARCH_RUN: ResearchRunRecord = {
   status: 'idle',
   updatedAt: null,
-  message: 'Run source research to draft editable thesis fields.',
+  message: 'Pull source links and draft notes you can edit.',
   sources: [],
   draft: null,
 }
@@ -243,7 +271,7 @@ const IDLE_RESEARCH_RUN: ResearchRunRecord = {
 const IDLE_CODEX_QUEUE_RECORD: CodexQueueRecord = {
   status: 'idle',
   updatedAt: null,
-  message: 'Queue a local JSON request for manual Codex or ChatGPT research.',
+  message: 'Create a local research request for Codex or ChatGPT.',
   request: null,
   requestPath: null,
   resultPath: null,
@@ -268,7 +296,9 @@ const DEFAULT_SETTINGS_FORM: SettingsForm = {
 }
 
 function App() {
-  const summary = buildPortfolioSeedSummary(seedHoldings)
+  const [holdings, setHoldings] = useState<SeedHolding[]>(() =>
+    seedHoldings.map((holding) => ({ ...holding })),
+  )
   const [manualLots, setManualLots] = useState<ManualLotInputs>(() =>
     Object.fromEntries(
       seedHoldings.map((holding) => [
@@ -280,6 +310,8 @@ function App() {
       ]),
     ),
   )
+  const [holdingForm, setHoldingForm] =
+    useState<HoldingForm>(DEFAULT_HOLDING_FORM)
   const [settingsForm, setSettingsForm] =
     useState<SettingsForm>(DEFAULT_SETTINGS_FORM)
   const [selectedPlannerSymbol, setSelectedPlannerSymbol] = useState<string>(
@@ -304,17 +336,22 @@ function App() {
   const [payYourselfForm, setPayYourselfForm] =
     useState<PayYourselfForm>(DEFAULT_PAY_YOURSELF_FORM)
   const [journalEntries, setJournalEntries] = useState<TradeJournalEntry[]>([])
+  const summary = useMemo(() => buildPortfolioSeedSummary(holdings), [holdings])
+  const symbolLabels = useMemo(
+    () => buildSymbolLabels(holdings, researchCards),
+    [holdings, researchCards],
+  )
   const researchProvider = useMemo(
-    () => createCuratedResearchProvider({ cards: seedWatchlist }),
-    [],
+    () => createCuratedResearchProvider({ cards: researchCards }),
+    [researchCards],
   )
   const marketSymbols = useMemo(
     () =>
       getMarketDataSymbols(
-        seedHoldings,
-        seedWatchlist.map((item) => item.symbol),
+        holdings,
+        researchCards.map((item) => item.symbol),
       ),
-    [],
+    [holdings, researchCards],
   )
   const { baselinePrices, snapshot, errorMessage } =
     useMarketDataSnapshot(marketSymbols)
@@ -322,8 +359,14 @@ function App() {
     return new Map(snapshot?.quotes.map((quote) => [quote.symbol, quote]))
   }, [snapshot])
   const movementRows = useMemo(
-    () => buildPriceMovementRows(snapshot, marketSymbols, baselinePrices),
-    [baselinePrices, marketSymbols, snapshot],
+    () =>
+      buildPriceMovementRows(
+        snapshot,
+        marketSymbols,
+        baselinePrices,
+        symbolLabels,
+      ),
+    [baselinePrices, marketSymbols, snapshot, symbolLabels],
   )
   const researchScores = useMemo(
     () => buildResearchCandidateScores(researchCards),
@@ -367,7 +410,7 @@ function App() {
     [settingsForm],
   )
   const portfolioInputs = useMemo(() => {
-    return seedHoldings.map((holding) => {
+    return holdings.map((holding) => {
       const manualLot = manualLots[holding.symbol]
       const quote = quotesBySymbol.get(holding.symbol)
 
@@ -378,7 +421,7 @@ function App() {
         currentPrice: quote?.price ?? null,
       }
     })
-  }, [manualLots, quotesBySymbol])
+  }, [holdings, manualLots, quotesBySymbol])
   const portfolioModel = useMemo(
     () => buildPortfolioModel(portfolioInputs, portfolioSettings),
     [portfolioInputs, portfolioSettings],
@@ -417,6 +460,7 @@ function App() {
             selectedPlannerForm,
             'currentPrice',
           ),
+          labels: symbolLabels,
           quote: selectedPlannerQuote,
           symbol: selectedPlannerSymbol,
         }),
@@ -427,6 +471,7 @@ function App() {
       selectedPlannerForm,
       selectedPlannerQuote,
       selectedPlannerSymbol,
+      symbolLabels,
     ],
   )
   const cashTargetAmount =
@@ -500,6 +545,21 @@ function App() {
     () => buildRealizedProfitSummary(journalEntries, payYourselfRule),
     [journalEntries, payYourselfRule],
   )
+  const profitCashPlan = useMemo(
+    () =>
+      buildProfitCashPlan({
+        summary: realizedProfitSummary,
+        positions: portfolioModel.positions,
+        researchScores,
+        quotesBySymbol,
+      }),
+    [
+      portfolioModel.positions,
+      quotesBySymbol,
+      realizedProfitSummary,
+      researchScores,
+    ],
+  )
   const concentrationSummary = useMemo(
     () => summarizeConcentrationRisk(portfolioModel),
     [portfolioModel],
@@ -524,6 +584,96 @@ function App() {
   const marketTimestamp = snapshot
     ? formatTimestamp(snapshot.fetchedAt)
     : 'Waiting for first poll'
+
+  function updateHoldingForm(field: keyof HoldingForm, value: string) {
+    setHoldingForm((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  function addHolding(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const symbol = normalizeSymbolInput(holdingForm.symbol)
+
+    if (!symbol) {
+      return
+    }
+
+    const existingCard = researchCards.find((card) => card.symbol === symbol)
+    const name = holdingForm.name.trim() || existingCard?.name || symbol
+    const stackLayerLabel = getAiStackLayerLabel(holdingForm.stackLayer)
+    const nextHolding: SeedHolding = {
+      symbol,
+      name,
+      stackLayer: stackLayerLabel,
+      thesisTag: `Manual holding in ${stackLayerLabel}. Add the thesis in the research card.`,
+      shares: null,
+      averageCost: null,
+    }
+
+    setHoldings((current) => {
+      if (current.some((holding) => holding.symbol === symbol)) {
+        return current.map((holding) =>
+          holding.symbol === symbol ? nextHolding : holding,
+        )
+      }
+
+      return [...current, nextHolding]
+    })
+    setManualLots((current) => ({
+      ...current,
+      [symbol]: {
+        shares: holdingForm.shares || current[symbol]?.shares || '',
+        averageCost:
+          holdingForm.averageCost || current[symbol]?.averageCost || '',
+      },
+    }))
+    setResearchCards((current) => {
+      if (current.some((card) => card.symbol === symbol)) {
+        return current.map((card) =>
+          card.symbol === symbol
+            ? {
+                ...card,
+                name,
+                stackLayer: holdingForm.stackLayer,
+                seedType: 'current_holding',
+              }
+            : card,
+        )
+      }
+
+      return [
+        ...current,
+        buildManualWatchlistCard({
+          symbol,
+          name,
+          stackLayer: holdingForm.stackLayer,
+          seedType: 'current_holding',
+        }),
+      ]
+    })
+    setSelectedPlannerSymbol(symbol)
+    setSelectedResearchSymbol(symbol)
+    setHoldingForm(DEFAULT_HOLDING_FORM)
+  }
+
+  function removeHolding(symbol: string) {
+    setHoldings((current) =>
+      current.filter((holding) => holding.symbol !== symbol),
+    )
+    setManualLots((current) => {
+      const next = { ...current }
+      delete next[symbol]
+      return next
+    })
+    setResearchCards((current) =>
+      current.map((card) =>
+        card.symbol === symbol ? { ...card, seedType: 'placeholder' } : card,
+      ),
+    )
+  }
 
   function updateManualLot(
     symbol: string,
@@ -710,7 +860,7 @@ function App() {
     })
 
     downloadJsonFile(
-      `swing-command-center-tax-helper-${generatedAt.slice(0, 10)}.json`,
+      `swing-command-center-tax-review-${generatedAt.slice(0, 10)}.json`,
       JSON.stringify(payload, null, 2),
     )
   }
@@ -828,7 +978,7 @@ function App() {
           ...record,
           status: 'reviewed',
           updatedAt: new Date().toISOString(),
-          message: 'Draft marked reviewed. Fields remain manually editable.',
+          message: 'Marked reviewed. You can still edit the notes.',
         },
       }
     })
@@ -851,7 +1001,7 @@ function App() {
           status: 'pending',
           updatedAt: request.createdAt,
           message:
-            'Request JSON queued locally. Process it with the worker prompt, then import the matching result file.',
+            'Research file created. Run it manually, then import the matching result file.',
           request,
           requestPath,
           resultPath: request.expectedResultPath,
@@ -885,7 +1035,7 @@ function App() {
           status: 'missing_result',
           updatedAt: new Date().toISOString(),
           message:
-            'No local result JSON has been imported for this queued request.',
+            'No result file has been imported for this research request yet.',
           errors: [],
         },
       }
@@ -936,7 +1086,7 @@ function App() {
           status: 'needs_review',
           updatedAt: importedAt,
           message:
-            'Codex result imported as AI-drafted fields. Review source notes before accepting the card.',
+            'Codex notes imported as a draft. Check the sources before trusting them.',
           sources: validation.sources,
           draft: validation.draft,
         },
@@ -948,7 +1098,7 @@ function App() {
           status: 'imported',
           updatedAt: importedAt,
           message:
-            'Validated result imported into the editable research card as needs review.',
+            'Result imported into the research card. Review it before using it.',
           errors: [],
         },
       }))
@@ -974,9 +1124,13 @@ function App() {
             <p className="eyebrow">Manual swing cockpit</p>
             <h1 id="page-title">Swing Command Center</h1>
             <div className="scope-line">
-              <span>{summary.symbols.join(' / ')}</span>
-              <span>{portfolioModel.completePositionCount} modeled</span>
-              <span>{portfolioModel.manualLotsNeeded} need lots</span>
+              <span>
+                {summary.symbols.length > 0
+                  ? summary.symbols.join(' / ')
+                  : 'Add holdings below'}
+              </span>
+              <span>{portfolioModel.completePositionCount} filled in</span>
+              <span>{portfolioModel.manualLotsNeeded} need details</span>
             </div>
           </div>
 
@@ -998,7 +1152,7 @@ function App() {
 
         <div className="primary-metrics" aria-label="Portfolio status">
           <MetricCell
-            detail={`${portfolioModel.completePositionCount}/${summary.totalSymbols} holdings modeled`}
+            detail={`${portfolioModel.completePositionCount}/${summary.totalSymbols} holdings have shares and cost`}
             label="Portfolio value"
             tone="neutral"
             value={formatCurrency(portfolioModel.totalMarketValue)}
@@ -1011,13 +1165,13 @@ function App() {
           />
           <MetricCell
             detail={cashRunwaySummary.detail}
-            label="Cash / runway"
+            label="Cash goal"
             tone={cashRunwaySummary.label === 'Short' ? 'warning' : 'neutral'}
             value={formatCurrency(cashRunwaySummary.targetAmount)}
           />
           <MetricCell
             detail={concentrationSummary.detail}
-            label="Concentration risk"
+            label="Position size"
             tone={getConcentrationTone(concentrationSummary.state)}
             value={concentrationSummary.label}
           />
@@ -1029,12 +1183,12 @@ function App() {
             aria-labelledby="top-scenarios-title"
           >
             <PanelHeading
-              eyebrow="Profit-lock"
-              title="Top manual scenarios"
+              eyebrow="Lock gains"
+              title="Best cash ideas"
               value={
                 topProfitLockScenarios.length > 0
                   ? `${topProfitLockScenarios.length} ready`
-                  : 'No tickets'
+                  : 'No ideas'
               }
             />
             <TopScenarioList
@@ -1073,12 +1227,12 @@ function App() {
 
       <section
         className="research-workbench"
-        aria-label="AI stack research tracker"
+        aria-label="Research tracker"
       >
         <section className="cockpit-panel stack-map-panel">
           <PanelHeading
-            eyebrow="AI stack"
-            title="Layer watchlist"
+            eyebrow="Research"
+            title="Watchlist groups"
             value={`${researchCards.length} cards`}
           />
           <StackLayerMap
@@ -1114,7 +1268,7 @@ function App() {
         <section className="cockpit-panel candidate-panel">
           <PanelHeading
             eyebrow="Checklist"
-            title="Candidate filter"
+            title="Find ideas"
             value={`${filteredResearchScores.length} shown`}
           />
           <CandidateFilterDesk
@@ -1133,7 +1287,7 @@ function App() {
           aria-labelledby="gains-chart-title"
         >
           <PanelHeading
-            eyebrow="Open P/L"
+            eyebrow="Open profit"
             title="Gains by holding"
             value={formatSignedCurrency(portfolioModel.totalUnrealizedGain)}
           />
@@ -1146,7 +1300,7 @@ function App() {
         >
           <PanelHeading
             eyebrow="Risk"
-            title="Concentration map"
+            title="Position size map"
             value={formatPercent(concentrationSummary.maxWeightPercent)}
           />
           <ConcentrationChart
@@ -1157,29 +1311,33 @@ function App() {
         </section>
       </section>
 
-      <section className="workbench-grid" aria-label="Inputs and scenario desk">
+      <section className="workbench-grid" aria-label="Inputs and plan builder">
         <section className="cockpit-panel input-panel">
           <PanelHeading
             eyebrow="Inputs"
-            title="Manual lots"
-            value={`${portfolioModel.manualLotsNeeded} open`}
+            title="Shares and cost"
+            value={`${portfolioModel.manualLotsNeeded} missing`}
           />
           <ManualLotTable
+            holdingForm={holdingForm}
             manualLots={manualLots}
             positions={portfolioModel.positions}
+            onAddHolding={addHolding}
+            onRemoveHolding={removeHolding}
             onUpdate={updateManualLot}
+            onUpdateHoldingForm={updateHoldingForm}
           />
         </section>
 
         <section className="cockpit-panel settings-panel">
           <PanelHeading
             eyebrow="Rules"
-            title="Risk settings"
+            title="Simple rules"
             value={`${portfolioModel.settings.alertPositionWeightPercent}% / ${portfolioModel.settings.maxPositionWeightPercent}%`}
           />
           <div className="settings-grid">
             <NumberSetting
-              label="Alert weight"
+              label="Warning weight"
               max="100"
               min="1"
               suffix="%"
@@ -1199,14 +1357,14 @@ function App() {
               }
             />
             <NumberSetting
-              label="Runway target"
+              label="Cash goal"
               min="0"
               prefix="$"
               value={settingsForm.cashRunwayDollars}
               onChange={(value) => updateSetting('cashRunwayDollars', value)}
             />
             <NumberSetting
-              label="Trading sleeve"
+              label="Trading cash"
               min="0"
               prefix="$"
               value={settingsForm.activeTradingSleeveDollars}
@@ -1226,7 +1384,7 @@ function App() {
             </label>
             <NumberSetting
               disabled={!settingsForm.taxReserveEnabled}
-              label="Reserve rate"
+              label="Tax reserve %"
               max="100"
               min="0"
               suffix="%"
@@ -1237,15 +1395,15 @@ function App() {
             />
           </div>
           <p className="state-note">
-            Tax reserve is an editable estimate bucket, not tax advice or a
-            filing calculation.
+            Tax reserve is just an estimate for planning. It is not tax advice
+            or filing math.
           </p>
         </section>
 
         <section className="cockpit-panel planner-panel">
           <PanelHeading
-            eyebrow="Scenario desk"
-            title="Target/stop planner"
+            eyebrow="Plan builder"
+            title="Price plan"
             value={selectedPlannerSymbol}
           />
           <ScenarioPlannerDesk
@@ -1269,7 +1427,7 @@ function App() {
         <section className="cockpit-panel journal-panel">
           <PanelHeading
             eyebrow="Journal"
-            title="Manual tickets and realized P/L"
+            title="Tickets and realized P/L"
             value={formatSignedCurrency(
               realizedProfitSummary.netRealizedTradingProfit,
             )}
@@ -1277,11 +1435,13 @@ function App() {
           <TradeJournalDesk
             entries={journalEntries}
             payYourselfForm={payYourselfForm}
+            profitCashPlan={profitCashPlan}
             summary={realizedProfitSummary}
             tickets={manualTradeTickets}
             onAddEntry={addJournalEntryFromTicket}
             onAddMistake={addManualMistakeEntry}
             onExport={exportTradeJournal}
+            onSelectSymbol={selectPlannerSymbol}
             onUpdateEntry={updateJournalEntry}
             onUpdatePayYourself={updatePayYourselfRule}
           />
@@ -1291,11 +1451,12 @@ function App() {
       <section className="cockpit-panel quote-panel" aria-label="Quote feed">
         <PanelHeading
           eyebrow="Market data"
-          title="Holdings and watchlist feed"
+          title="Prices"
           value={`Poll ${MARKET_DATA_POLL_INTERVAL_MS / 1000}s`}
         />
         <QuoteTable
           isLoading={isMarketLoading}
+          labels={symbolLabels}
           quotesBySymbol={quotesBySymbol}
           symbols={marketSymbols}
         />
@@ -1343,7 +1504,7 @@ function MarketStateBanner(props: {
     return (
       <div className="state-banner loading">
         <strong>Loading quotes</strong>
-        <span>Waiting for the first market-data poll.</span>
+        <span>Waiting for the first price update.</span>
       </div>
     )
   }
@@ -1360,8 +1521,8 @@ function MarketStateBanner(props: {
   if (props.hasStaleQuotes) {
     return (
       <div className="state-banner stale">
-        <strong>Stale quote in feed</strong>
-        <span>One or more symbols are using cached market data.</span>
+        <strong>Old price in feed</strong>
+        <span>One or more symbols are using cached price data.</span>
       </div>
     )
   }
@@ -1369,7 +1530,7 @@ function MarketStateBanner(props: {
   if (props.snapshot?.warning) {
     return (
       <div className="state-banner warning">
-        <strong>Fallback feed</strong>
+        <strong>Fallback prices</strong>
         <span>{props.snapshot.warning}</span>
       </div>
     )
@@ -1442,7 +1603,7 @@ function ResearchCardEditor(props: {
   if (!props.card) {
     return (
       <EmptyState
-        detail="Add a watchlist symbol before editing research."
+        detail="Add a watchlist symbol before editing notes."
         title="No research card selected"
       />
     )
@@ -1458,16 +1619,16 @@ function ResearchCardEditor(props: {
           <span>
             {getAiStackLayerLabel(card.stackLayer)} ·{' '}
             {card.seedType === 'current_holding'
-              ? 'Current holding'
-              : 'Placeholder'}
+              ? 'Holding'
+              : 'Watchlist idea'}
           </span>
         </div>
         <ScoreMeter score={score} />
       </div>
 
       <p className="state-note">
-        Manual checklist only. Source-reported analyst targets and setup levels
-        are context, not trade instructions.
+        Notes and setup fields are for your own checklist. Source targets and
+        levels are context, not trade instructions.
       </p>
 
       <ResearchRunDesk
@@ -1502,7 +1663,7 @@ function ResearchCardEditor(props: {
           }
         />
         <TextAreaField
-          label="Thesis break"
+          label="What changes my mind"
           value={card.research.invalidation}
           onChange={(value) =>
             props.onUpdateResearch(card.symbol, 'invalidation', value)
@@ -1516,7 +1677,7 @@ function ResearchCardEditor(props: {
           }
         />
         <TextAreaField
-          label="Analyst/source notes"
+          label="Source notes"
           value={card.research.sourceNotes}
           onChange={(value) =>
             props.onUpdateResearch(card.symbol, 'sourceNotes', value)
@@ -1526,21 +1687,21 @@ function ResearchCardEditor(props: {
 
       <div className="compact-field-grid">
         <TextField
-          label="Entry context"
+          label="Entry idea"
           value={card.research.plannedEntry}
           onChange={(value) =>
             props.onUpdateResearch(card.symbol, 'plannedEntry', value)
           }
         />
         <TextField
-          label="Risk level"
+          label="Stop / risk level"
           value={card.research.stop}
           onChange={(value) =>
             props.onUpdateResearch(card.symbol, 'stop', value)
           }
         />
         <TextField
-          label="Analyst targets"
+          label="Source targets"
           value={card.research.target}
           onChange={(value) =>
             props.onUpdateResearch(card.symbol, 'target', value)
@@ -1559,7 +1720,7 @@ function ResearchCardEditor(props: {
       <div className="setup-block">
         <div className="setup-heading">
           <strong>Trade setup</strong>
-          <span>Manual plan fields</span>
+          <span>Your plan fields</span>
         </div>
         <div className="setup-grid">
           <TextField
@@ -1591,14 +1752,14 @@ function ResearchCardEditor(props: {
             }
           />
           <TextField
-            label="Planned scale-out"
+            label="Take-profit plan"
             value={card.tradeSetup.plannedScaleOut}
             onChange={(value) =>
               props.onUpdateTradeSetup(card.symbol, 'plannedScaleOut', value)
             }
           />
           <TextField
-            label="Invalidation"
+            label="What cancels this trade"
             value={card.tradeSetup.invalidation}
             onChange={(value) =>
               props.onUpdateTradeSetup(card.symbol, 'invalidation', value)
@@ -1641,10 +1802,10 @@ function CodexResearchQueueDesk(props: {
     <div className={`codex-queue-desk ${queueState.status}`}>
       <div className="research-run-actions">
         <button type="button" onClick={() => props.onQueueRequest(card)}>
-          Queue Codex request
+          Create research file
         </button>
         <button type="button" onClick={() => props.onCheckResult(card.symbol)}>
-          Check result
+          Look for result
         </button>
         <label className="file-button">
           <span>Import result JSON</span>
@@ -1704,21 +1865,21 @@ function ResearchRunDesk(props: {
           type="button"
           onClick={() => props.onRunSymbol(card.symbol)}
         >
-          {isLoading ? 'Running' : 'Run research'}
+          {isLoading ? 'Running' : 'Draft notes'}
         </button>
         <button
           disabled={isLoading}
           type="button"
           onClick={() => props.onRunLayer(card.stackLayer)}
         >
-          Run layer
+          Draft group
         </button>
         {canMarkReviewed && (
           <button
             type="button"
             onClick={() => props.onMarkReviewed(card.symbol)}
           >
-            Mark reviewed
+            I reviewed this
           </button>
         )}
       </div>
@@ -1738,7 +1899,7 @@ function ResearchRunDesk(props: {
       ) : (
         runState.status === 'empty_source' && (
           <EmptyState
-            detail="The selected symbol has no configured research source catalog yet."
+            detail="No source list is configured for this symbol yet."
             title="No sources found"
           />
         )
@@ -1766,7 +1927,7 @@ function ResearchSourceList(props: { sources: readonly ResearchSource[] }) {
             <time dateTime={source.retrievedAt}>
               Retrieved {formatDateTime(source.retrievedAt)}
             </time>
-            <span>{source.freshness === 'stale' ? 'Stale' : 'Fresh'}</span>
+            <span>{source.freshness === 'stale' ? 'Old' : 'Fresh'}</span>
           </div>
           <p>{source.summary}</p>
         </article>
@@ -1789,7 +1950,7 @@ function CandidateFilterDesk(props: {
     <div className="candidate-filter-desk">
       <div className="filter-grid">
         <label className="setting-control">
-          <span>Layer</span>
+          <span>Group</span>
           <select
             value={props.filters.layer}
             onChange={(event) =>
@@ -1799,7 +1960,7 @@ function CandidateFilterDesk(props: {
               )
             }
           >
-            <option value="all">All layers</option>
+            <option value="all">All groups</option>
             {AI_STACK_LAYERS.map((layer) => (
               <option key={layer.id} value={layer.id}>
                 {layer.label}
@@ -1808,7 +1969,7 @@ function CandidateFilterDesk(props: {
           </select>
         </label>
         <NumberSetting
-          label="Min score"
+          label="Minimum filled in"
           max="100"
           min="0"
           suffix="/100"
@@ -1826,7 +1987,7 @@ function CandidateFilterDesk(props: {
           />
         </label>
         <label className="setting-control toggle-control">
-          <span>Needs input</span>
+          <span>Needs details</span>
           <input
             checked={props.filters.needsInputOnly}
             type="checkbox"
@@ -1837,8 +1998,8 @@ function CandidateFilterDesk(props: {
         </label>
       </div>
       <p className="state-note">
-        Scores count completed checklist fields only. They do not score
-        attractiveness, probability, or expected return.
+        Score only means more fields are filled in. It does not mean the trade
+        is good.
       </p>
       <CandidateScoreList
         scores={props.scores}
@@ -1857,8 +2018,8 @@ function CandidateScoreList(props: {
   if (props.scores.length === 0) {
     return (
       <EmptyState
-        detail="Relax the layer, score, or input filters to show candidates."
-        title="No candidates match"
+        detail="Clear a group, score, or details filter to show more ideas."
+        title="No ideas match"
       />
     )
   }
@@ -1949,10 +2110,10 @@ function TopScenarioList(props: {
       <EmptyState
         detail={
           props.manualLotsNeeded > 0
-            ? `${props.manualLotsNeeded} positions still need manual lots.`
-            : 'No ready profit-lock scenario for the current prices.'
+            ? `${props.manualLotsNeeded} positions still need shares and cost.`
+            : 'No cash idea is ready at the current prices.'
         }
-        title="No ready scenarios"
+        title="No cash ideas yet"
       />
     )
   }
@@ -1996,8 +2157,8 @@ function AllocationChart(props: {
   if (props.rows.length === 0) {
     return (
       <EmptyState
-        detail="Manual shares and average cost are required before allocation can be modeled."
-        title="No modeled allocation"
+        detail="Enter shares and average cost before allocation is calculated."
+        title="No allocation yet"
       />
     )
   }
@@ -2042,8 +2203,8 @@ function GainChart(props: { rows: readonly GainRow[]; isLoading: boolean }) {
   if (props.rows.length === 0) {
     return (
       <EmptyState
-        detail="Complete at least one manual lot to calculate open gain or loss."
-        title="No modeled P/L"
+        detail="Enter shares and average cost for at least one holding."
+        title="No open P/L yet"
       />
     )
   }
@@ -2094,7 +2255,7 @@ function ConcentrationChart(props: {
   return (
     <div className="concentration-chart">
       <div className="threshold-key">
-        <span>Alert {formatPercent(props.alertPercent)}</span>
+        <span>Warn {formatPercent(props.alertPercent)}</span>
         <span>Cap {formatPercent(props.capPercent)}</span>
       </div>
       {props.rows.map((row) => {
@@ -2140,7 +2301,7 @@ function MovementChart(props: {
   if (props.rows.length === 0) {
     return (
       <EmptyState
-        detail="No symbols are configured for the current market feed."
+        detail="No symbols are set up for the price feed."
         title="No watchlist symbols"
       />
     )
@@ -2191,56 +2352,149 @@ function MovementChart(props: {
 }
 
 function ManualLotTable(props: {
+  holdingForm: HoldingForm
   positions: ReturnType<typeof buildPortfolioModel>['positions']
   manualLots: ManualLotInputs
+  onAddHolding: (event: FormEvent<HTMLFormElement>) => void
+  onRemoveHolding: (symbol: string) => void
   onUpdate: (
     symbol: string,
     field: keyof ManualLotInputs[string],
     value: string,
   ) => void
+  onUpdateHoldingForm: (field: keyof HoldingForm, value: string) => void
 }) {
   return (
-    <div className="lot-table">
-      {props.positions.map((position) => (
-        <div className="lot-row" key={position.symbol}>
-          <div>
-            <strong>{position.symbol}</strong>
-            <span>{position.name}</span>
-          </div>
-          <label>
-            <span>Shares</span>
-            <input
-              min="0"
-              step="0.0001"
-              type="number"
-              value={props.manualLots[position.symbol]?.shares ?? ''}
-              onChange={(event) =>
-                props.onUpdate(position.symbol, 'shares', event.target.value)
-              }
-            />
-          </label>
-          <label>
-            <span>Avg cost</span>
-            <input
-              min="0"
-              step="0.01"
-              type="number"
-              value={props.manualLots[position.symbol]?.averageCost ?? ''}
-              onChange={(event) =>
-                props.onUpdate(
-                  position.symbol,
-                  'averageCost',
-                  event.target.value,
-                )
-              }
-            />
-          </label>
-          <span className={`risk-chip ${position.concentrationLevel}`}>
-            {position.concentrationLabel}
-          </span>
-          <span className="mono">{formatCurrency(position.marketValue)}</span>
+    <div className="holding-input-desk">
+      <form className="holding-add-form" onSubmit={props.onAddHolding}>
+        <label className="field-control">
+          <span>Symbol</span>
+          <input
+            required
+            placeholder="TSLA"
+            value={props.holdingForm.symbol}
+            onChange={(event) =>
+              props.onUpdateHoldingForm('symbol', event.target.value)
+            }
+          />
+        </label>
+        <label className="field-control">
+          <span>Name</span>
+          <input
+            placeholder="Company name"
+            value={props.holdingForm.name}
+            onChange={(event) =>
+              props.onUpdateHoldingForm('name', event.target.value)
+            }
+          />
+        </label>
+        <label className="field-control">
+          <span>Group</span>
+          <select
+            value={props.holdingForm.stackLayer}
+            onChange={(event) =>
+              props.onUpdateHoldingForm(
+                'stackLayer',
+                event.target.value as AiStackLayerId,
+              )
+            }
+          >
+            {AI_STACK_LAYERS.map((layer) => (
+              <option key={layer.id} value={layer.id}>
+                {layer.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field-control">
+          <span>Shares</span>
+          <input
+            min="0"
+            step="0.0001"
+            type="number"
+            value={props.holdingForm.shares}
+            onChange={(event) =>
+              props.onUpdateHoldingForm('shares', event.target.value)
+            }
+          />
+        </label>
+        <label className="field-control">
+          <span>Avg cost</span>
+          <input
+            min="0"
+            step="0.01"
+            type="number"
+            value={props.holdingForm.averageCost}
+            onChange={(event) =>
+              props.onUpdateHoldingForm('averageCost', event.target.value)
+            }
+          />
+        </label>
+        <button className="form-action-button" type="submit">
+          Add / update
+        </button>
+      </form>
+
+      {props.positions.length === 0 ? (
+        <EmptyState
+          detail="Add a symbol, shares, and average cost to start the portfolio view."
+          title="No holdings added"
+        />
+      ) : (
+        <div className="lot-table">
+          {props.positions.map((position) => (
+            <div className="lot-row" key={position.symbol}>
+              <div>
+                <strong>{position.symbol}</strong>
+                <span>{position.name}</span>
+              </div>
+              <label>
+                <span>Shares</span>
+                <input
+                  min="0"
+                  step="0.0001"
+                  type="number"
+                  value={props.manualLots[position.symbol]?.shares ?? ''}
+                  onChange={(event) =>
+                    props.onUpdate(
+                      position.symbol,
+                      'shares',
+                      event.target.value,
+                    )
+                  }
+                />
+              </label>
+              <label>
+                <span>Avg cost</span>
+                <input
+                  min="0"
+                  step="0.01"
+                  type="number"
+                  value={props.manualLots[position.symbol]?.averageCost ?? ''}
+                  onChange={(event) =>
+                    props.onUpdate(
+                      position.symbol,
+                      'averageCost',
+                      event.target.value,
+                    )
+                  }
+                />
+              </label>
+              <span className={`risk-chip ${position.concentrationLevel}`}>
+                {position.concentrationLabel}
+              </span>
+              <span className="mono">{formatCurrency(position.marketValue)}</span>
+              <button
+                className="inline-action-button"
+                type="button"
+                onClick={() => props.onRemoveHolding(position.symbol)}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   )
 }
@@ -2293,7 +2547,7 @@ function ScenarioPlannerDesk(props: {
     <div className="target-planner">
       <div className="planner-controls">
         <label className="setting-control">
-          <span>Symbol / source</span>
+          <span>Symbol</span>
           <select
             value={props.selectedSymbol}
             onChange={(event) => props.onSelectSymbol(event.target.value)}
@@ -2306,14 +2560,14 @@ function ScenarioPlannerDesk(props: {
           </select>
         </label>
         <NumberSetting
-          label="Cash target"
+          label="Cash goal"
           min="0"
           prefix="$"
           value={props.cashTargetInput}
           onChange={props.onUpdateCashTarget}
         />
         <div className={`planner-status ${props.scenario.status}`}>
-          <span>Planner state</span>
+          <span>Plan status</span>
           <strong>{getScenarioPlannerStatusLabel(props.scenario.status)}</strong>
           <small>
             {props.scenario.sourceLabel} · {props.scenario.timeHorizon}
@@ -2322,7 +2576,7 @@ function ScenarioPlannerDesk(props: {
         <div className="planner-status">
           <span>Tax reserve</span>
           <strong>{props.taxReserveLabel}</strong>
-          <small>Estimate bucket only</small>
+          <small>Estimate only</small>
         </div>
       </div>
 
@@ -2355,7 +2609,7 @@ function ScenarioPlannerDesk(props: {
           onChange={(value) => props.onUpdateField('maxLossDollars', value)}
         />
         <NumberSetting
-          label="Risk / reward"
+          label="Reward target"
           min="0"
           suffix="R"
           value={props.fields.desiredRiskReward}
@@ -2377,14 +2631,14 @@ function ScenarioPlannerDesk(props: {
           onChange={(value) => props.onUpdateField('trimPercent', value)}
         />
         <NumberSetting
-          label="Support / ref"
+          label="Support price"
           min="0"
           prefix="$"
           value={props.fields.supportPrice}
           onChange={(value) => props.onUpdateField('supportPrice', value)}
         />
         <NumberSetting
-          label="Limit buffer"
+          label="Stop-limit buffer"
           min="0"
           suffix="%"
           value={props.fields.stopLimitBufferPercent}
@@ -2404,13 +2658,13 @@ function ScenarioPlannerDesk(props: {
 
       <div className="profit-ticket-section">
         <div className="setup-heading">
-          <strong>Profit-lock tickets</strong>
-          <span>Selected holding only</span>
+          <strong>Gain-lock tickets</strong>
+          <span>For this symbol</span>
         </div>
         {props.profitLockTickets.length === 0 ? (
           <EmptyState
-            detail={`Complete the manual lots table for ${props.selectedSymbol}, or select a current holding with modeled lots.`}
-            title="No selected holding tickets"
+            detail={`Enter shares and cost for ${props.selectedSymbol}, or select a holding with those details filled in.`}
+            title="No tickets for this holding"
           />
         ) : (
           <div className="ticket-grid">
@@ -2431,7 +2685,7 @@ function ScenarioPlannerOutput(props: { scenario: TargetStopScenario }) {
     <div className={`scenario-plan-output ${scenario.status}`}>
       <div className="scenario-plan-topline">
         <div>
-          <strong>{scenario.symbol} planning levels</strong>
+          <strong>{scenario.symbol} price plan</strong>
           <span>{scenario.name}</span>
         </div>
         <span className={`ticket-state ${scenario.status}`}>
@@ -2466,27 +2720,27 @@ function ScenarioPlannerOutput(props: { scenario: TargetStopScenario }) {
           value={formatCurrency(scenario.stopLimit.limit)}
         />
         <ScenarioLevel
-          label="First target"
+          label="First sell target"
           reason={scenario.firstTarget.reason}
           value={formatCurrency(scenario.firstTarget.value)}
         />
         <ScenarioLevel
-          label="Stretch target"
+          label="Higher target"
           reason={scenario.stretchTarget.reason}
           value={formatCurrency(scenario.stretchTarget.value)}
         />
         <ScenarioLevel
-          label="Trim size"
+          label="Shares to trim"
           reason={scenario.trimShares.reason}
           value={formatShares(scenario.trimShares.value)}
         />
         <ScenarioLevel
-          label="Estimated proceeds"
+          label="Cash raised"
           reason={scenario.estimatedProceeds.reason}
           value={formatCurrency(scenario.estimatedProceeds.value)}
         />
         <ScenarioLevel
-          label="Estimated gain/loss"
+          label="Estimated P/L"
           reason={scenario.estimatedGainLoss.reason}
           tone={getSignedTone(scenario.estimatedGainLoss.value ?? 0)}
           value={formatSignedCurrency(scenario.estimatedGainLoss.value)}
@@ -2528,7 +2782,7 @@ function ProfitLockTicketCard(props: { ticket: ProfitLockTicket }) {
     <article className={`ticket-row ${ticket.status}`}>
       <div className="ticket-topline">
         <span className={`ticket-state ${ticket.status}`}>
-          {ticket.status === 'ready' ? 'Manual scenario' : 'Not applicable'}
+          {ticket.status === 'ready' ? 'Planning idea' : 'Needs details'}
         </span>
         <strong>{ticket.title}</strong>
       </div>
@@ -2555,7 +2809,7 @@ function ProfitLockTicketCard(props: { ticket: ProfitLockTicket }) {
           <dd>{formatCurrency(ticket.estimatedNetCash)}</dd>
         </div>
         <div>
-          <dt>Remain wt</dt>
+          <dt>Weight left</dt>
           <dd>{formatPercent(ticket.remainingWeightPercent)}</dd>
         </div>
       </dl>
@@ -2568,6 +2822,7 @@ function TradeJournalDesk(props: {
   tickets: readonly ManualTradeTicket[]
   entries: readonly TradeJournalEntry[]
   summary: RealizedProfitSummary
+  profitCashPlan: ProfitCashPlan
   payYourselfForm: PayYourselfForm
   onAddEntry: (
     ticket: ManualTradeTicket,
@@ -2575,6 +2830,7 @@ function TradeJournalDesk(props: {
   ) => void
   onAddMistake: () => void
   onExport: () => void
+  onSelectSymbol: (symbol: string) => void
   onUpdateEntry: (
     id: string,
     field: JournalEntryEditableField,
@@ -2602,7 +2858,7 @@ function TradeJournalDesk(props: {
         </label>
         <NumberSetting
           disabled={!props.payYourselfForm.enabled}
-          label="After reserve"
+          label="Percent after reserve"
           max="100"
           min="0"
           suffix="%"
@@ -2620,21 +2876,26 @@ function TradeJournalDesk(props: {
             type="button"
             onClick={props.onExport}
           >
-            Export tax-helper JSON
+            Export tax review JSON
           </button>
         </div>
       </div>
 
       <JournalSummaryGrid summary={props.summary} />
 
+      <ProfitCashPlanPanel
+        plan={props.profitCashPlan}
+        onSelectSymbol={props.onSelectSymbol}
+      />
+
       <div className="setup-heading">
-        <strong>Manual trade tickets</strong>
+        <strong>Trade checklists</strong>
         <span>{props.tickets.length} generated</span>
       </div>
       {props.tickets.length === 0 ? (
         <EmptyState
-          detail="Complete a profit-lock scenario or trade setup before generating local checklist tickets."
-          title="No manual tickets"
+          detail="Fill in a gain-lock idea or trade setup before checklists show up."
+          title="No trade checklists"
         />
       ) : (
         <div className="manual-ticket-grid">
@@ -2649,13 +2910,13 @@ function TradeJournalDesk(props: {
       )}
 
       <div className="setup-heading">
-        <strong>Journal entries</strong>
+        <strong>Trade journal</strong>
         <span>{props.entries.length} local</span>
       </div>
       {props.entries.length === 0 ? (
         <EmptyState
-          detail="Plan a ticket, log an execution, capture a mistake, or record a result after manual action."
-          title="No journal entries yet"
+          detail="Plan a trade, log a fill, capture a mistake, or record the result."
+          title="No journal rows yet"
         />
       ) : (
         <div className="journal-entry-list">
@@ -2679,34 +2940,150 @@ function JournalSummaryGrid(props: { summary: RealizedProfitSummary }) {
     <div className="journal-summary-grid" aria-label="Realized profit summary">
       <ScenarioLevel
         label="Net realized P/L"
-        reason={`${summary.realizedEntryCount} realized entries; planned entries stay out of this math.`}
+        reason={`${summary.realizedEntryCount} realized rows; planned rows are not counted.`}
         tone={getSignedTone(summary.netRealizedTradingProfit)}
         value={formatSignedCurrency(summary.netRealizedTradingProfit)}
       />
       <ScenarioLevel
         label="Reserve estimate"
-        reason="Sum of journal reserve estimates for executed, mistake, and result entries."
+        reason="Reserve estimates from fills, mistakes, and result rows."
         value={formatCurrency(summary.taxReserveEstimate)}
       />
       <ScenarioLevel
         label="After reserve"
-        reason="Net realized trading profit minus the reserve estimate, floored at zero."
+        reason="Net realized trading profit minus the reserve estimate."
         tone={getSignedTone(summary.profitAfterReserve)}
         value={formatCurrency(summary.profitAfterReserve)}
       />
       <ScenarioLevel
-        label="Pay-yourself"
+        label="Pay yourself"
         reason={`${formatCurrency(
           summary.loggedPayYourselfAmount,
-        )} logged; ${formatCurrency(summary.remainingPayYourselfAmount)} remaining from rule.`}
+        )} already logged; ${formatCurrency(summary.remainingPayYourselfAmount)} left by the rule.`}
         value={formatCurrency(summary.recommendedPayYourselfAmount)}
       />
       <ScenarioLevel
-        label="Tax prep notes"
-        reason={`${summary.taxPrepEntryCount} entries include notes for a tax-helper review.`}
+        label="Tax notes"
+        reason={`${summary.taxPrepEntryCount} rows include notes for tax review.`}
         value={`${summary.taxPrepEntryCount}/${summary.entryCount}`}
       />
     </div>
+  )
+}
+
+function ProfitCashPlanPanel(props: {
+  plan: ProfitCashPlan
+  onSelectSymbol: (symbol: string) => void
+}) {
+  const { plan } = props
+
+  return (
+    <section className="profit-cash-plan" aria-label="Profit cash plan">
+      <div className="setup-heading">
+        <strong>Profit cash plan</strong>
+        <span>{formatCurrency(plan.cashToPlan)} after pay-yourself</span>
+      </div>
+      <p className="state-note">{PROFIT_CASH_PLAN_DISCLOSURE}</p>
+
+      <div className="profit-cash-summary">
+        <ScenarioLevel
+          label="After reserve"
+          reason="Net realized profit minus the tax reserve estimate."
+          value={formatCurrency(plan.profitAfterReserve)}
+        />
+        <ScenarioLevel
+          label="Pay-yourself set aside"
+          reason="Uses the rule above before planning what is left."
+          value={formatCurrency(plan.payYourselfAmount)}
+        />
+        <ScenarioLevel
+          label="Cash to place"
+          reason="The amount left to review for reinvesting, buying back, or staying in cash."
+          value={formatCurrency(plan.cashToPlan)}
+        />
+      </div>
+
+      {plan.cashToPlan <= 0 ? (
+        <EmptyState
+          detail="Log an executed trade, mistake, or result row with realized profit to see cash left after reserve and pay-yourself."
+          title="No profit cash to plan yet"
+        />
+      ) : (
+        <div className="profit-cash-grid">
+          {plan.candidates.map((candidate) => (
+            <ProfitCashCandidateCard
+              candidate={candidate}
+              key={candidate.id}
+              onSelectSymbol={props.onSelectSymbol}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function ProfitCashCandidateCard(props: {
+  candidate: ProfitCashCandidate
+  onSelectSymbol: (symbol: string) => void
+}) {
+  const { candidate } = props
+  const canOpenSymbol = candidate.kind !== 'cash'
+
+  return (
+    <article className={`profit-cash-card ${candidate.kind}`}>
+      <div className="ticket-topline">
+        <span className="ticket-state ready">{candidate.label}</span>
+        <strong>
+          {candidate.symbol} · {candidate.name}
+        </strong>
+      </div>
+
+      <dl>
+        <div>
+          <dt>Price</dt>
+          <dd>{formatCurrency(candidate.currentPrice)}</dd>
+        </div>
+        <div>
+          <dt>Est shares</dt>
+          <dd>{formatShares(candidate.estimatedShares)}</dd>
+        </div>
+        <div>
+          <dt>Research</dt>
+          <dd>
+            {candidate.researchScorePercent === null
+              ? 'Not scored'
+              : `${candidate.researchScorePercent}%`}
+          </dd>
+        </div>
+        <div>
+          <dt>Status</dt>
+          <dd>{candidate.statusLabel}</dd>
+        </div>
+      </dl>
+
+      <div className="ticket-copy">
+        <p>
+          <strong>Why review it</strong>
+          <span>{candidate.reason}</span>
+        </p>
+        <p>
+          <strong>Next step</strong>
+          <span>{candidate.nextStep}</span>
+        </p>
+      </div>
+
+      {canOpenSymbol && (
+        <div className="ticket-actions">
+          <button
+            type="button"
+            onClick={() => props.onSelectSymbol(candidate.symbol)}
+          >
+            Open research
+          </button>
+        </div>
+      )}
+    </article>
   )
 }
 
@@ -2724,7 +3101,7 @@ function ManualTradeTicketCard(props: {
     <article className={`manual-ticket-card ${ticket.status}`}>
       <div className="ticket-topline">
         <span className={`ticket-state ${ticket.status}`}>
-          {ticket.status === 'ready' ? 'Checklist ready' : 'Needs input'}
+          {ticket.status === 'ready' ? 'Ready to use' : 'Needs details'}
         </span>
         <strong>
           {ticket.symbol} · {ticket.action}
@@ -2764,7 +3141,7 @@ function ManualTradeTicketCard(props: {
           <span>{ticket.reason}</span>
         </p>
         <p>
-          <strong>Invalidation</strong>
+          <strong>Cancel if</strong>
           <span>{ticket.invalidation}</span>
         </p>
       </div>
@@ -2842,12 +3219,12 @@ function JournalEntryCard(props: {
         />
         <ScenarioLevel
           label="Cash raised"
-          reason="Estimated or actual cash raised from the journal row."
+          reason="Cash raised from this journal row."
           value={formatCurrency(entry.cashRaised)}
         />
         <ScenarioLevel
           label="Cash spent"
-          reason="Estimated or actual cash spent from the journal row."
+          reason="Cash spent from this journal row."
           value={formatCurrency(entry.cashSpent)}
         />
       </div>
@@ -2869,7 +3246,7 @@ function JournalEntryCard(props: {
           }
         />
         <NumberEntryField
-          label="Pay-yourself"
+          label="Pay yourself"
           min="0"
           value={formatEditableNumber(entry.payYourselfAmount)}
           onChange={(value) =>
@@ -2885,7 +3262,7 @@ function JournalEntryCard(props: {
           onChange={(value) => props.onUpdate(entry.id, 'notes', value)}
         />
         <TextAreaField
-          label="Tax prep notes"
+          label="Tax notes"
           value={entry.taxPrepNotes}
           onChange={(value) => props.onUpdate(entry.id, 'taxPrepNotes', value)}
         />
@@ -2916,6 +3293,7 @@ function NumberEntryField(props: {
 
 function QuoteTable(props: {
   symbols: readonly string[]
+  labels: ReadonlyMap<string, SymbolLabel>
   quotesBySymbol: Map<string, MarketQuote>
   isLoading: boolean
 }) {
@@ -2927,7 +3305,7 @@ function QuoteTable(props: {
     <div className="quote-table">
       {props.symbols.map((symbol) => {
         const quote = props.quotesBySymbol.get(symbol)
-        const label = getSymbolLabel(symbol)
+        const label = getSymbolLabel(symbol, props.labels)
 
         return (
           <div className="quote-row" key={symbol}>
@@ -2987,7 +3365,7 @@ function buildResearchRunRecord(
       status: 'empty_source',
       updatedAt: bundle.generatedAt,
       message:
-        bundle.warning ?? 'No transparent sources were returned for this symbol.',
+        bundle.warning ?? 'No sources were returned for this symbol.',
       sources: bundle.sources,
       draft: null,
     }
@@ -2998,7 +3376,7 @@ function buildResearchRunRecord(
       status: 'stale_source',
       updatedAt: bundle.generatedAt,
       message:
-        'Draft inserted, but every source timestamp is stale. Review URLs before relying on it.',
+        'Draft notes were added, but the sources look old. Check the links before using them.',
       sources: bundle.sources,
       draft,
     }
@@ -3008,7 +3386,7 @@ function buildResearchRunRecord(
     status: 'needs_review',
     updatedAt: bundle.generatedAt,
     message:
-      'AI-drafted fields were inserted. Review every source note before accepting the card.',
+      'Draft notes were added. Check the sources before using the card.',
     sources: bundle.sources,
     draft,
   }
@@ -3021,13 +3399,13 @@ function getResearchRunStatusLabel(status: ResearchRunStatus): string {
     case 'loading':
       return 'Loading sources'
     case 'needs_review':
-      return 'AI-drafted · Needs review'
+      return 'Draft notes · Review'
     case 'reviewed':
       return 'Reviewed'
     case 'empty_source':
-      return 'Empty source'
+      return 'No sources'
     case 'stale_source':
-      return 'Stale source · Needs review'
+      return 'Old sources · Review'
     case 'error':
       return 'Research error'
   }
@@ -3036,7 +3414,7 @@ function getResearchRunStatusLabel(status: ResearchRunStatus): string {
 function getCodexQueueStatusLabel(status: CodexQueueStatus): string {
   switch (status) {
     case 'idle':
-      return 'Codex queue ready'
+      return 'Research file ready'
     case 'pending':
       return 'Pending result'
     case 'missing_result':
@@ -3044,7 +3422,7 @@ function getCodexQueueStatusLabel(status: CodexQueueStatus): string {
     case 'invalid_result':
       return 'Invalid result'
     case 'imported':
-      return 'Imported · Needs review'
+      return 'Imported · Review'
     case 'error':
       return 'Queue error'
   }
@@ -3135,6 +3513,7 @@ function buildPriceMovementRows(
   snapshot: MarketDataSnapshot | null,
   symbols: readonly string[],
   baselineBySymbol: Record<string, number>,
+  labels: ReadonlyMap<string, SymbolLabel>,
 ): PriceMovementRow[] {
   return symbols.map((symbol) => {
     const quote = snapshot?.quotes.find((item) => item.symbol === symbol)
@@ -3149,7 +3528,7 @@ function buildPriceMovementRows(
       change !== null && baselinePrice > 0
         ? (change / baselinePrice) * 100
         : null
-    const label = getSymbolLabel(symbol)
+    const label = getSymbolLabel(symbol, labels)
 
     return {
       symbol,
@@ -3186,25 +3565,45 @@ function addMissingBaselinePrices(
   return next
 }
 
-function getSymbolLabel(symbol: string): { name: string; layer: string } {
-  const holding = seedHoldings.find((item) => item.symbol === symbol)
-  const watchlistItem = seedWatchlist.find((item) => item.symbol === symbol)
+function buildSymbolLabels(
+  holdings: readonly SeedHolding[],
+  cards: readonly SeedWatchlistItem[],
+): Map<string, SymbolLabel> {
+  const labels = new Map<string, SymbolLabel>()
 
-  if (holding) {
-    return {
+  for (const card of cards) {
+    labels.set(card.symbol, {
+      name: card.name,
+      layer: getAiStackLayerLabel(card.stackLayer),
+    })
+  }
+
+  for (const holding of holdings) {
+    const card = cards.find((item) => item.symbol === holding.symbol)
+
+    labels.set(holding.symbol, {
       name: holding.name,
-      layer: watchlistItem
-        ? getAiStackLayerLabel(watchlistItem.stackLayer)
-        : 'Holding',
-    }
+      layer: card ? getAiStackLayerLabel(card.stackLayer) : holding.stackLayer,
+    })
   }
 
-  return {
-    name: watchlistItem?.name ?? symbol,
-    layer: watchlistItem
-      ? getAiStackLayerLabel(watchlistItem.stackLayer)
-      : 'Watchlist',
-  }
+  return labels
+}
+
+function getSymbolLabel(
+  symbol: string,
+  labels: ReadonlyMap<string, SymbolLabel>,
+): SymbolLabel {
+  return (
+    labels.get(symbol) ?? {
+      name: symbol,
+      layer: 'Manual symbol',
+    }
+  )
+}
+
+function normalizeSymbolInput(value: string): string {
+  return value.trim().toUpperCase().replace(/\s+/g, '')
 }
 
 function buildScenarioPlannerFieldValues(input: {
@@ -3279,10 +3678,11 @@ function buildScenarioPlannerInput(input: {
   card: SeedWatchlistItem | null
   fields: ScenarioPlannerForm
   hasManualCurrentPrice: boolean
+  labels: ReadonlyMap<string, SymbolLabel>
   quote: MarketQuote | undefined
   symbol: string
 }): ScenarioPlannerInput {
-  const label = getSymbolLabel(input.symbol)
+  const label = getSymbolLabel(input.symbol, input.labels)
 
   return {
     symbol: input.symbol,
@@ -3375,9 +3775,9 @@ function getScenarioPlannerStatusLabel(
 ): string {
   switch (status) {
     case 'ready':
-      return 'Ready for review'
+      return 'Ready to check'
     case 'missing_input':
-      return 'Needs input'
+      return 'Needs details'
     case 'invalid':
       return 'Fix levels'
   }

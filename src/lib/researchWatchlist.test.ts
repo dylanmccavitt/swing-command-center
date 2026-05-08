@@ -69,12 +69,12 @@ describe('AI stack research watchlist', () => {
     expect(scores[0]).toMatchObject({
       symbol: 'READY',
       scorePercent: 100,
-      statusLabel: 'Manual review ready',
+      statusLabel: 'Ready to review',
       missingFields: [],
     })
     expect(scores[1].symbol).toBe('DRAFT')
     expect(scores[1].scorePercent).toBeLessThan(55)
-    expect(scores[1].missingFields).toContain('Setup trigger/risk')
+    expect(scores[1].missingFields).toContain('Entry and risk plan')
   })
 
   it('filters scores by layer, holding status, minimum score, and missing input', () => {

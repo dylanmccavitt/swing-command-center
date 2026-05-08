@@ -60,38 +60,36 @@ export function buildProfitLockTickets(
       id: 'trim_to_target_weight',
       title: `Trim to ${formatPercent(targetWeightPercent)} weight`,
       description:
-        'Manual scenario for reducing this position to the selected concentration target.',
+        'Shows how many shares to sell to get this holding closer to the target size.',
       sharesToSell: sharesForTargetWeight(
         position,
         input.portfolioMarketValue,
         targetWeightPercent,
       ),
-      unavailableNote: 'Position is already at or below the selected target.',
+      unavailableNote: 'This holding is already at or below that target.',
     },
     ...GAIN_LOCK_PERCENTS.map((percent) => ({
       id: `lock_${percent}_percent_gain` as ProfitLockScenarioId,
-      title: `Lock ${percent}% of unrealized gain`,
+      title: `Take ${percent}% of open gain`,
       description:
-        'Manual scenario for realizing a slice of the open gain while leaving the rest of the position intact.',
+        'Shows a small trim that turns part of the open gain into cash while keeping the rest.',
       sharesToSell: sharesForGainLock(position, percent),
-      unavailableNote:
-        'This scenario needs a positive unrealized gain per share.',
+      unavailableNote: 'Needs a positive open gain per share.',
     })),
     {
       id: 'recover_cost_basis',
       title: 'Recover cost basis',
       description:
-        'Manual scenario for raising cash roughly equal to the original cost basis.',
+        'Shows a trim that could pull back roughly your original cost.',
       sharesToSell: sharesForCostBasisRecovery(position),
-      unavailableNote: 'Current price is not high enough to recover basis cleanly.',
+      unavailableNote: 'The current price is not high enough to recover cost cleanly.',
     },
     {
       id: 'raise_cash_amount',
-      title: 'Raise specific cash amount',
-      description:
-        'Manual scenario for raising the cash target entered in settings.',
+      title: 'Raise cash goal',
+      description: 'Shows how many shares could raise the cash goal in settings.',
       sharesToSell: sharesForCashAmount(position, cashTargetAmount),
-      unavailableNote: 'Enter a cash target above $0 to draft this scenario.',
+      unavailableNote: 'Set a cash goal above $0 to show this idea.',
     },
   ]
 
@@ -151,7 +149,7 @@ function buildTicket(input: {
     description: input.definition.description,
     status: isReady ? 'ready' : 'not_applicable',
     note: isReady
-      ? 'Scenario only. Review manually before creating any order ticket.'
+      ? 'Planning math only. Review it yourself before creating any order.'
       : input.definition.unavailableNote,
     sharesToSell,
     estimatedProceeds,

@@ -56,13 +56,13 @@ describe('cockpit summaries', () => {
 
     expect(summarizeConcentrationRisk(incompleteModel)).toMatchObject({
       state: 'needs_input',
-      label: 'Needs lots',
+      label: 'Needs details',
       atRiskCount: 0,
       needsInputCount: 2,
     })
     expect(summarizeConcentrationRisk(completeModel)).toMatchObject({
       state: 'over_cap',
-      label: 'Over cap',
+      label: 'Too big',
       atRiskCount: 1,
       needsInputCount: 0,
     })

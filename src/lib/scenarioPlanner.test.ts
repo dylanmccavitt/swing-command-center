@@ -23,9 +23,9 @@ describe('target and stop scenario planner', () => {
     expect(scenario.status).toBe('ready')
     expect(scenario.plannedEntry.value).toBe(100)
     expect(scenario.stopLevel.value).toBe(92)
-    expect(scenario.stopLevel.reason).toContain('manual support')
+    expect(scenario.stopLevel.reason).toContain('support price')
     expect(scenario.firstTarget.value).toBe(116)
-    expect(scenario.firstTarget.reason).toContain('2R')
+    expect(scenario.firstTarget.reason).toContain('2x')
     expect(scenario.stretchTarget.value).toBe(135)
     expect(scenario.stretchTarget.reason).toContain('35% gain')
     expect(scenario.trimShares.value).toBe(5)
@@ -51,7 +51,7 @@ describe('target and stop scenario planner', () => {
 
     expect(scenario.status).toBe('ready')
     expect(scenario.stopLevel.value).toBe(42.5)
-    expect(scenario.stopLevel.reason).toContain('$75 risk budget')
+    expect(scenario.stopLevel.reason).toContain('$75 max loss')
     expect(scenario.firstTarget.value).toBe(72.5)
     expect(scenario.stretchTarget.value).toBe(80)
   })
@@ -109,10 +109,10 @@ describe('target and stop scenario planner', () => {
     )
   })
 
-  it('keeps copy framed as manual review instead of a recommendation', () => {
+  it('keeps copy framed as planning math instead of a recommendation', () => {
     const scenario = buildTargetStopScenario(buildInput())
 
-    expect(SCENARIO_PLANNER_DISCLOSURE).toContain('Manual scenario')
+    expect(SCENARIO_PLANNER_DISCLOSURE).toContain('Planning math')
     expect(SCENARIO_PLANNER_DISCLOSURE).toContain('Not a recommendation')
     expect(SCENARIO_PLANNER_DISCLOSURE).toContain('buy/sell instruction')
     expect(scenario.disclosure).toBe(SCENARIO_PLANNER_DISCLOSURE)
