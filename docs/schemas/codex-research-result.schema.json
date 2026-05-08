@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://swing-command-center.local/schemas/codex-research-result.schema.json",
+  "title": "Swing Command Center Codex Research Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "requestId",
+    "symbol",
+    "companyName",
+    "draftedAt",
+    "reviewState",
+    "disclosure",
+    "fields",
+    "sources"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "scc.codexResearchResult.v1"
+    },
+    "requestId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "symbol": {
+      "type": "string",
+      "pattern": "^[A-Z.]{1,10}$"
+    },
+    "companyName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "draftedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "reviewState": {
+      "const": "needs_review"
+    },
+    "disclosure": {
+      "const": "AI-drafted source summary for manual review only. Not a recommendation, rating, guaranteed outcome, or buy/sell instruction."
+    },
+    "fields": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "thesis",
+        "catalyst",
+        "invalidation",
+        "riskNotes",
+        "sourceNotes",
+        "plannedEntry",
+        "stop",
+        "target",
+        "reviewDate"
+      ],
+      "properties": {
+        "thesis": { "type": "string", "minLength": 1 },
+        "catalyst": { "type": "string", "minLength": 1 },
+        "invalidation": { "type": "string", "minLength": 1 },
+        "riskNotes": { "type": "string", "minLength": 1 },
+        "sourceNotes": { "type": "string", "minLength": 1 },
+        "plannedEntry": { "type": "string", "minLength": 1 },
+        "stop": { "type": "string", "minLength": 1 },
+        "target": { "type": "string", "minLength": 1 },
+        "reviewDate": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "type",
+          "title",
+          "url",
+          "publisher",
+          "accessedAt",
+          "publishedAt",
+          "notes"
+        ],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "type": {
+            "enum": [
+              "recent_news",
+              "investor_relations",
+              "sec_filings",
+              "earnings_call",
+              "sector_context",
+              "analyst_context"
+            ]
+          },
+          "title": { "type": "string", "minLength": 1 },
+          "url": { "type": "string", "format": "uri" },
+          "publisher": { "type": "string", "minLength": 1 },
+          "accessedAt": { "type": "string", "format": "date-time" },
+          "publishedAt": {
+            "oneOf": [
+              { "type": "string", "format": "date-time" },
+              { "type": "null" }
+            ]
+          },
+          "notes": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

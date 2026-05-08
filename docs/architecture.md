@@ -11,7 +11,9 @@ profit-lock scenario tickets, and keeps an editable AI-stack research watchlist
 for thesis-first trade setup tracking. The research desk can run a typed
 research-provider flow for one symbol or the selected AI-stack layer, then
 draft editable research fields with visible source URLs, timestamps, and review
-state.
+state. It can also queue a local Codex/ChatGPT research request JSON and import
+a validated local result JSON into the same editable research card as
+AI-drafted / Needs review.
 
 ## Major Components
 
@@ -37,8 +39,13 @@ state.
 - `src/lib/researchProvider.ts`: typed research source boundary, curated
   source-pack builder, stale/empty source states, and normalized AI-drafted
   research fields for manual review.
+- `src/lib/codexResearchQueue.ts`: local Codex research request builder,
+  result validator, source metadata normalizer, and ignored queue path helpers.
 - `vite.config.ts`: Vite/Vitest config plus the local dev proxy that injects
   Alpaca Market Data headers from local environment variables.
+- `research-queue/`: ignored runtime request/result JSON folders plus committed
+  queue shape docs and `.gitkeep` placeholders.
+- `docs/schemas/`: JSON schemas for Codex research request and result files.
 - `docs/handoffs/`: resume state for active or recently completed issue work.
 - `docs/decisions/`: durable decision records.
 - `docs/plans/`: active larger work only. Keep empty except for placeholders
@@ -67,8 +74,13 @@ state.
 - Research-draft boundary: generated research drafts must stay behind a typed
   `ResearchProvider`, show source metadata, write into editable fields only,
   and remain marked AI-drafted / needs review until the user reviews them.
-  Drafts must not include guaranteed recommendations, buy/sell instructions,
-  brokerage access, or order execution.
+  Drafts may source-report analyst ratings, target prices, and option strike
+  context, but must not create their own rating, guarantee an outcome, write
+  buy/sell instructions, access brokerage accounts, or execute orders.
+- Codex queue boundary: local request/result JSON can be generated and imported,
+  but the app must not call OpenAI APIs, require API keys, silently invoke a
+  Codex subscription, or commit generated research artifacts. Result JSON must
+  be validated before it drafts card fields.
 
 ## Main Flows
 
@@ -92,14 +104,20 @@ state.
    by AI-stack layer, calculate manual checklist completeness, and filter the
    candidate list by layer, score, holding status, and missing inputs.
 10. The user can run research for the selected symbol or selected layer. The
-   research provider returns recent-news, investor, filing, earnings, and
-   sector-context source metadata; the app drafts thesis, catalyst,
-   invalidation, risk notes, review date, and source notes into the editable
-   card.
-11. Tests verify that the seed list remains limited to the known symbols, does
-   not invent lot data, and that portfolio/profit-lock/cockpit math remains
-   stable. Research-provider tests cover source metadata, stale/empty states,
-   draft normalization, and non-recommendation copy.
+    research provider returns recent-news, investor, filing, earnings, and
+    sector-context source metadata; the app drafts thesis, catalyst,
+    invalidation, risk notes, review date, and source notes into the editable
+    card.
+11. The user can queue a Codex research request for the selected symbol. The app
+    creates a structured request JSON for manual worker processing, then can
+    import a local result JSON only after schema, symbol/request, source
+    metadata, and non-recommendation validation pass.
+12. Tests verify that the seed list remains limited to the known symbols, does
+    not invent lot data, and that portfolio/profit-lock/cockpit math remains
+    stable. Research-provider tests cover source metadata, stale/empty states,
+    draft normalization, and non-recommendation copy. Codex queue tests cover
+    request payloads, result validation, source metadata, ignored generated
+    artifacts, and non-recommendation copy.
 
 ## Important Invariants
 
@@ -121,6 +139,10 @@ state.
   recommendations.
 - Research source packs must show URL, retrieved timestamp, and freshness before
   the draft can be treated as reviewed.
+- Codex research request/result JSON under `research-queue/requests/*.json` and
+  `research-queue/results/*.json` is runtime-only and ignored by git.
+- Codex result imports must include source metadata and remain AI-drafted /
+  Needs review until the user manually reviews them.
 - UI state must clearly show loading, empty, stale-data, and error/fallback
   market and research conditions without inventing brokerage holdings or trade
   history.

@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://swing-command-center.local/schemas/codex-research-request.schema.json",
+  "title": "Swing Command Center Codex Research Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "requestId",
+    "createdAt",
+    "symbol",
+    "companyName",
+    "stackLayer",
+    "layerLabel",
+    "currentCard",
+    "requestedOutput",
+    "guardrails",
+    "workerPromptPath",
+    "expectedResultPath",
+    "disclosure"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "scc.codexResearchRequest.v1"
+    },
+    "requestId": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+-[0-9]{4}-[0-9]{2}-[0-9]{2}t[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{3}z$"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "symbol": {
+      "type": "string",
+      "pattern": "^[A-Z.]{1,10}$"
+    },
+    "companyName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "stackLayer": {
+      "type": "string"
+    },
+    "layerLabel": {
+      "type": "string",
+      "minLength": 1
+    },
+    "currentCard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["research", "tradeSetup"],
+      "properties": {
+        "research": {
+          "$ref": "#/$defs/researchFields"
+        },
+        "tradeSetup": {
+          "$ref": "#/$defs/tradeSetupFields"
+        }
+      }
+    },
+    "requestedOutput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "fields", "sourceMetadata"],
+      "properties": {
+        "schemaVersion": {
+          "const": "scc.codexResearchResult.v1"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "thesis",
+              "catalyst",
+              "invalidation",
+              "riskNotes",
+              "sourceNotes",
+              "plannedEntry",
+              "stop",
+              "target",
+              "reviewDate"
+            ]
+          },
+          "minItems": 9,
+          "maxItems": 9,
+          "uniqueItems": true
+        },
+        "sourceMetadata": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "id",
+              "type",
+              "title",
+              "url",
+              "publisher",
+              "accessedAt",
+              "publishedAt",
+              "notes"
+            ]
+          },
+          "minItems": 8,
+          "maxItems": 8,
+          "uniqueItems": true
+        }
+      }
+    },
+    "guardrails": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "workerPromptPath": {
+      "const": "docs/codex-research-worker.md"
+    },
+    "expectedResultPath": {
+      "type": "string",
+      "pattern": "^research-queue/results/[a-z0-9-]+\\.result\\.json$"
+    },
+    "disclosure": {
+      "const": "AI-drafted source summary for manual review only. Not a recommendation, rating, guaranteed outcome, or buy/sell instruction."
+    }
+  },
+  "$defs": {
+    "researchFields": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "thesis",
+        "catalyst",
+        "invalidation",
+        "riskNotes",
+        "sourceNotes",
+        "plannedEntry",
+        "stop",
+        "target",
+        "reviewDate"
+      ],
+      "properties": {
+        "thesis": { "type": "string" },
+        "catalyst": { "type": "string" },
+        "invalidation": { "type": "string" },
+        "riskNotes": { "type": "string" },
+        "sourceNotes": { "type": "string" },
+        "plannedEntry": { "type": "string" },
+        "stop": { "type": "string" },
+        "target": { "type": "string" },
+        "reviewDate": { "type": "string" }
+      }
+    },
+    "tradeSetupFields": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entryTrigger",
+        "stopLevel",
+        "target",
+        "maxLoss",
+        "plannedScaleOut",
+        "invalidation",
+        "timeHorizon"
+      ],
+      "properties": {
+        "entryTrigger": { "type": "string" },
+        "stopLevel": { "type": "string" },
+        "target": { "type": "string" },
+        "maxLoss": { "type": "string" },
+        "plannedScaleOut": { "type": "string" },
+        "invalidation": { "type": "string" },
+        "timeHorizon": { "type": "string" }
+      }
+    }
+  }
+}

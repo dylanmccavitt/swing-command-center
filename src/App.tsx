@@ -52,6 +52,14 @@ import type {
   ResearchLayerGroup,
 } from './lib/researchWatchlist'
 import {
+  buildCodexResearchDownloadName,
+  buildCodexResearchRequest,
+  buildCodexResearchRequestPath,
+  parseCodexResearchResultJson,
+  serializeCodexResearchRequest,
+  type CodexResearchRequest,
+} from './lib/codexResearchQueue'
+import {
   buildResearchDraftFromBundle,
   createCuratedResearchProvider,
   describeResearchSourceType,
@@ -107,6 +115,26 @@ type ResearchRunRecord = {
 
 type ResearchRunMap = Record<string, ResearchRunRecord>
 
+type CodexQueueStatus =
+  | 'idle'
+  | 'pending'
+  | 'missing_result'
+  | 'invalid_result'
+  | 'imported'
+  | 'error'
+
+type CodexQueueRecord = {
+  status: CodexQueueStatus
+  updatedAt: string | null
+  message: string
+  request: CodexResearchRequest | null
+  requestPath: string | null
+  resultPath: string | null
+  errors: string[]
+}
+
+type CodexQueueMap = Record<string, CodexQueueRecord>
+
 type PriceMovementRow = {
   symbol: string
   name: string
@@ -133,6 +161,16 @@ const IDLE_RESEARCH_RUN: ResearchRunRecord = {
   message: 'Run source research to draft editable thesis fields.',
   sources: [],
   draft: null,
+}
+
+const IDLE_CODEX_QUEUE_RECORD: CodexQueueRecord = {
+  status: 'idle',
+  updatedAt: null,
+  message: 'Queue a local JSON request for manual Codex or ChatGPT research.',
+  request: null,
+  requestPath: null,
+  resultPath: null,
+  errors: [],
 }
 
 const DEFAULT_SETTINGS_FORM: SettingsForm = {
@@ -183,6 +221,7 @@ function App() {
     DEFAULT_RESEARCH_FILTERS,
   )
   const [researchRuns, setResearchRuns] = useState<ResearchRunMap>({})
+  const [codexQueue, setCodexQueue] = useState<CodexQueueMap>({})
   const researchProvider = useMemo(
     () => createCuratedResearchProvider({ cards: seedWatchlist }),
     [],
@@ -235,6 +274,9 @@ function App() {
   const selectedResearchRun = selectedResearchCard
     ? researchRuns[selectedResearchCard.symbol] ?? IDLE_RESEARCH_RUN
     : IDLE_RESEARCH_RUN
+  const selectedCodexQueueRecord = selectedResearchCard
+    ? codexQueue[selectedResearchCard.symbol] ?? IDLE_CODEX_QUEUE_RECORD
+    : IDLE_CODEX_QUEUE_RECORD
   const portfolioSettings = useMemo(
     () => parseSettingsForm(settingsForm),
     [settingsForm],
@@ -503,6 +545,138 @@ function App() {
     })
   }
 
+  function queueCodexResearchRequest(card: SeedWatchlistItem) {
+    try {
+      const request = buildCodexResearchRequest(card)
+      const requestText = serializeCodexResearchRequest(request)
+      const requestPath = buildCodexResearchRequestPath(request.requestId)
+
+      downloadJsonFile(
+        buildCodexResearchDownloadName(request.requestId),
+        requestText,
+      )
+
+      setCodexQueue((current) => ({
+        ...current,
+        [card.symbol]: {
+          status: 'pending',
+          updatedAt: request.createdAt,
+          message:
+            'Request JSON queued locally. Process it with the worker prompt, then import the matching result file.',
+          request,
+          requestPath,
+          resultPath: request.expectedResultPath,
+          errors: [],
+        },
+      }))
+    } catch (error) {
+      setCodexQueue((current) => ({
+        ...current,
+        [card.symbol]: {
+          status: 'error',
+          updatedAt: new Date().toISOString(),
+          message: getErrorMessage(error, 'Failed to queue request JSON.'),
+          request: current[card.symbol]?.request ?? null,
+          requestPath: current[card.symbol]?.requestPath ?? null,
+          resultPath: current[card.symbol]?.resultPath ?? null,
+          errors: [getErrorMessage(error, 'Failed to queue request JSON.')],
+        },
+      }))
+    }
+  }
+
+  function markCodexResultMissing(symbol: string) {
+    setCodexQueue((current) => {
+      const record = current[symbol] ?? IDLE_CODEX_QUEUE_RECORD
+
+      return {
+        ...current,
+        [symbol]: {
+          ...record,
+          status: 'missing_result',
+          updatedAt: new Date().toISOString(),
+          message:
+            'No local result JSON has been imported for this queued request.',
+          errors: [],
+        },
+      }
+    })
+  }
+
+  async function importCodexResearchResult(symbol: string, file: File) {
+    const queuedRecord = codexQueue[symbol] ?? IDLE_CODEX_QUEUE_RECORD
+
+    try {
+      const validation = parseCodexResearchResultJson(await file.text(), {
+        expectedRequestId: queuedRecord.request?.requestId,
+        expectedSymbol: symbol,
+      })
+      const importedAt = new Date().toISOString()
+
+      if (!validation.ok) {
+        setCodexQueue((current) => ({
+          ...current,
+          [symbol]: {
+            ...(current[symbol] ?? queuedRecord),
+            status: 'invalid_result',
+            updatedAt: importedAt,
+            message: 'Result JSON failed local schema validation.',
+            errors: validation.errors,
+          },
+        }))
+
+        return
+      }
+
+      setResearchCards((current) =>
+        current.map((card) =>
+          card.symbol === symbol
+            ? {
+                ...card,
+                research: {
+                  ...card.research,
+                  ...validation.draft.fields,
+                },
+              }
+            : card,
+        ),
+      )
+      setResearchRuns((current) => ({
+        ...current,
+        [symbol]: {
+          status: 'needs_review',
+          updatedAt: importedAt,
+          message:
+            'Codex result imported as AI-drafted fields. Review source notes before accepting the card.',
+          sources: validation.sources,
+          draft: validation.draft,
+        },
+      }))
+      setCodexQueue((current) => ({
+        ...current,
+        [symbol]: {
+          ...(current[symbol] ?? queuedRecord),
+          status: 'imported',
+          updatedAt: importedAt,
+          message:
+            'Validated result imported into the editable research card as needs review.',
+          errors: [],
+        },
+      }))
+    } catch (error) {
+      setCodexQueue((current) => ({
+        ...current,
+        [symbol]: {
+          ...(current[symbol] ?? queuedRecord),
+          status: 'error',
+          updatedAt: new Date().toISOString(),
+          message: getErrorMessage(error, 'Failed to read result JSON.'),
+          errors: [getErrorMessage(error, 'Failed to read result JSON.')],
+        },
+      }))
+    }
+  }
+
   return (
     <main className="cockpit-shell">
       <section className="command-surface" aria-labelledby="page-title">
@@ -634,9 +808,13 @@ function App() {
           />
           <ResearchCardEditor
             card={selectedResearchCard}
+            codexQueue={selectedCodexQueueRecord}
             runState={selectedResearchRun}
             score={selectedResearchScore}
+            onCheckCodexResult={markCodexResultMissing}
+            onImportCodexResult={importCodexResearchResult}
             onMarkReviewed={markResearchReviewed}
+            onQueueCodexRequest={queueCodexResearchRequest}
             onRunLayer={runResearchForLayer}
             onRunSymbol={(symbol) => void runResearchForSymbols([symbol])}
             onUpdateResearch={updateResearchField}
@@ -960,7 +1138,11 @@ function StackLayerMap(props: {
 
 function ResearchCardEditor(props: {
   card: SeedWatchlistItem | null
+  codexQueue: CodexQueueRecord
   score: ResearchCandidateScore | null
+  onQueueCodexRequest: (card: SeedWatchlistItem) => void
+  onCheckCodexResult: (symbol: string) => void
+  onImportCodexResult: (symbol: string, file: File) => Promise<void>
   runState: ResearchRunRecord
   onRunSymbol: (symbol: string) => void
   onRunLayer: (layer: AiStackLayerId) => void
@@ -1003,8 +1185,8 @@ function ResearchCardEditor(props: {
       </div>
 
       <p className="state-note">
-        Manual checklist only. This does not rank expected returns or generate
-        guaranteed trade recommendations.
+        Manual checklist only. Source-reported analyst targets and setup levels
+        are context, not trade instructions.
       </p>
 
       <ResearchRunDesk
@@ -1015,23 +1197,31 @@ function ResearchCardEditor(props: {
         onRunSymbol={props.onRunSymbol}
       />
 
+      <CodexResearchQueueDesk
+        card={card}
+        queueState={props.codexQueue}
+        onCheckResult={props.onCheckCodexResult}
+        onImportResult={props.onImportCodexResult}
+        onQueueRequest={props.onQueueCodexRequest}
+      />
+
       <div className="research-fields">
         <TextAreaField
-          label="Thesis"
+          label="Stock brief"
           value={card.research.thesis}
           onChange={(value) =>
             props.onUpdateResearch(card.symbol, 'thesis', value)
           }
         />
         <TextAreaField
-          label="Catalyst"
+          label="What to watch"
           value={card.research.catalyst}
           onChange={(value) =>
             props.onUpdateResearch(card.symbol, 'catalyst', value)
           }
         />
         <TextAreaField
-          label="Invalidation"
+          label="Thesis break"
           value={card.research.invalidation}
           onChange={(value) =>
             props.onUpdateResearch(card.symbol, 'invalidation', value)
@@ -1045,7 +1235,7 @@ function ResearchCardEditor(props: {
           }
         />
         <TextAreaField
-          label="Source notes"
+          label="Analyst/source notes"
           value={card.research.sourceNotes}
           onChange={(value) =>
             props.onUpdateResearch(card.symbol, 'sourceNotes', value)
@@ -1055,21 +1245,21 @@ function ResearchCardEditor(props: {
 
       <div className="compact-field-grid">
         <TextField
-          label="Planned entry"
+          label="Entry context"
           value={card.research.plannedEntry}
           onChange={(value) =>
             props.onUpdateResearch(card.symbol, 'plannedEntry', value)
           }
         />
         <TextField
-          label="Stop"
+          label="Risk level"
           value={card.research.stop}
           onChange={(value) =>
             props.onUpdateResearch(card.symbol, 'stop', value)
           }
         />
         <TextField
-          label="Target"
+          label="Analyst targets"
           value={card.research.target}
           onChange={(value) =>
             props.onUpdateResearch(card.symbol, 'target', value)
@@ -1142,6 +1332,73 @@ function ResearchCardEditor(props: {
           />
         </div>
       </div>
+    </div>
+  )
+}
+
+function CodexResearchQueueDesk(props: {
+  card: SeedWatchlistItem
+  queueState: CodexQueueRecord
+  onQueueRequest: (card: SeedWatchlistItem) => void
+  onCheckResult: (symbol: string) => void
+  onImportResult: (symbol: string, file: File) => Promise<void>
+}) {
+  const { card, queueState } = props
+
+  function importSelectedFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file) {
+      return
+    }
+
+    void props.onImportResult(card.symbol, file)
+  }
+
+  return (
+    <div className={`codex-queue-desk ${queueState.status}`}>
+      <div className="research-run-actions">
+        <button type="button" onClick={() => props.onQueueRequest(card)}>
+          Queue Codex request
+        </button>
+        <button type="button" onClick={() => props.onCheckResult(card.symbol)}>
+          Check result
+        </button>
+        <label className="file-button">
+          <span>Import result JSON</span>
+          <input
+            accept="application/json,.json"
+            type="file"
+            onChange={importSelectedFile}
+          />
+        </label>
+      </div>
+
+      <div className={`codex-queue-state ${queueState.status}`}>
+        <strong>{getCodexQueueStatusLabel(queueState.status)}</strong>
+        <span>{queueState.message}</span>
+        {queueState.updatedAt && (
+          <time>{formatDateTime(queueState.updatedAt)}</time>
+        )}
+      </div>
+
+      {(queueState.requestPath || queueState.resultPath) && (
+        <div className="queue-path-list" aria-label="Local queue paths">
+          {queueState.requestPath && (
+            <span>Request: {queueState.requestPath}</span>
+          )}
+          {queueState.resultPath && <span>Result: {queueState.resultPath}</span>}
+        </div>
+      )}
+
+      {queueState.errors.length > 0 && (
+        <ul className="queue-error-list">
+          {queueState.errors.map((error) => (
+            <li key={error}>{error}</li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
@@ -1899,6 +2156,40 @@ function getResearchRunStatusLabel(status: ResearchRunStatus): string {
     case 'error':
       return 'Research error'
   }
+}
+
+function getCodexQueueStatusLabel(status: CodexQueueStatus): string {
+  switch (status) {
+    case 'idle':
+      return 'Codex queue ready'
+    case 'pending':
+      return 'Pending result'
+    case 'missing_result':
+      return 'Missing result'
+    case 'invalid_result':
+      return 'Invalid result'
+    case 'imported':
+      return 'Imported · Needs review'
+    case 'error':
+      return 'Queue error'
+  }
+}
+
+function downloadJsonFile(filename: string, content: string) {
+  const blob = new Blob([content], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+
+  link.href = url
+  link.download = filename
+  document.body.append(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback
 }
 
 function useMarketDataSnapshot(symbols: readonly string[]): {
