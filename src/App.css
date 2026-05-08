@@ -706,6 +706,45 @@ dd {
   padding: 10px;
 }
 
+.local-state-panel {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  padding: 10px;
+}
+
+.local-state-panel strong,
+.local-state-panel span {
+  display: block;
+}
+
+.local-state-panel strong {
+  font-size: 12px;
+}
+
+.local-state-panel span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.local-state-panel.ok {
+  border-left: 4px solid rgba(36, 107, 87, 0.65);
+}
+
+.local-state-panel.warning {
+  border-left: 4px solid rgba(179, 108, 32, 0.7);
+}
+
+.local-state-panel.error {
+  border-left: 4px solid rgba(184, 55, 55, 0.7);
+}
+
+.local-state-panel .local-state-warning {
+  color: var(--danger, #a33a3a);
+}
+
 .codex-queue-desk {
   border: 1px solid var(--line);
   background: var(--soft);

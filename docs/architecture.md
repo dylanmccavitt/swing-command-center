@@ -4,7 +4,8 @@
 
 Swing Command Center is a local Vite, React, and TypeScript frontend app. It
 renders a dense portfolio cockpit shell from starter holding metadata and
-user-added holdings, accepts manual local lot inputs in the browser session,
+user-added holdings, accepts manual local lot inputs in the browser, persists
+typed user-entered cockpit state to versioned local browser storage,
 polls a replaceable market-data provider for holdings and research watchlist
 symbols, turns complete positions into concentration status, chart rows, and
 manual profit-lock scenario tickets, and keeps an editable AI-stack research
@@ -38,6 +39,9 @@ AI-drafted / Needs review.
   normalization, stale/freshness labeling, and mock fallback data.
 - `src/lib/portfolio.ts`: typed portfolio model, settings normalization,
   position valuation, concentration thresholds, and seed summaries.
+- `src/lib/localPersistence.ts`: versioned local browser storage boundary for
+  user-entered holdings/lots, edited research cards, planning settings, journal
+  rows, sell fills, Robinhood import review state, and reset/validation flows.
 - `src/lib/profitLock.ts`: manual scenario ticket calculators for trimming to
   target weight, locking unrealized gains, recovering cost basis, raising a
   cash target, and estimating an editable tax reserve bucket.
@@ -86,9 +90,10 @@ AI-drafted / Needs review.
   failed requests fall back to mock quotes. Issue worktrees may reuse the
   canonical checkout's ignored `.env.local` through the shared git directory;
   worktree-local env files still override it.
-- Persistence boundary: MVP state should stay local in the browser session.
-  Repo fixtures must not contain account-specific secrets or private brokerage
-  data.
+- Persistence boundary: user-entered cockpit state is local-only browser data
+  behind the versioned `src/lib/localPersistence.ts` boundary. The app may load,
+  save, validate, and deliberately clear this local state, but it must not sync
+  it to a cloud account or commit account-specific data to source.
 - Advice boundary: the app can calculate and organize planning information, but
   tax reserves and trade plans are estimates/helpers, not financial advice.
 - Scenario boundary: profit-lock outputs are manual scenario tickets. The app
@@ -139,64 +144,70 @@ AI-drafted / Needs review.
    when local env keys are present and mock fallback otherwise.
 3. The React shell polls the provider every minute and renders source,
    freshness, and quote timestamps.
-4. The user can enter shares and average cost locally for seeded holdings.
-5. The user can add, update, or remove holdings in the session. New holdings
+4. The local persistence boundary loads a valid saved snapshot before the app
+   initializes editable state. Invalid or unsupported snapshots are shown as
+   blocked and do not overwrite the current seed/default state.
+5. The user can enter shares and average cost locally for seeded holdings.
+6. The user can add, update, or remove holdings in the session. New holdings
    also get an editable research card so they can be planned alongside the
    watchlist.
-6. Portfolio helpers combine manual lots with current prices to calculate
+7. Portfolio helpers combine manual lots with current prices to calculate
    market value, cost basis, unrealized P/L, portfolio weight, and
    concentration state.
-7. Cockpit helpers rank ready manual profit-lock scenarios across complete
+8. Cockpit helpers rank ready manual profit-lock scenarios across complete
    positions and summarize concentration and cash/runway status for the first
    screen.
-8. Chart components render allocation, gains by holding, concentration, and
+9. Chart components render allocation, gains by holding, concentration, and
    session price/watchlist movement from typed derived rows.
-9. Profit-lock helpers turn a complete selected position into scenario tickets
+10. Profit-lock helpers turn a complete selected position into scenario tickets
    for target-weight trims, gain locks, cost-basis recovery, and cash raising.
-10. Target/stop scenario helpers turn the selected current holding or research
+11. Target/stop scenario helpers turn the selected current holding or research
    card plus editable inputs into planned entry, stop, stop-limit buffer, first
    target, stretch target, trim, proceeds, gain/loss, and remaining-position
    outputs with explicit reasons and guardrails.
-11. Trade-journal helpers convert selected profit-lock scenarios and trade
+12. Trade-journal helpers convert selected profit-lock scenarios and trade
     setups into manual checklist tickets with symbol, action, estimated shares,
     estimated cash raised or spent, estimated realized gain, tax reserve,
     reason, invalidation, and checklist copy.
-12. The user can add local journal entries for planned, executed, mistake, and
+13. The user can add local journal entries for planned, executed, mistake, and
     result states; edit notes and legacy review fields; and keep checklist
     context separate from actual filled-sell math.
-13. The user can add manual sell fills, mark sells planned/ordered/filled/
+14. The user can add manual sell fills, mark sells planned/ordered/filled/
     canceled/reviewed, import local CSV/JSON sell records, enter starting cash
     and manually marked reinvested cash, then review buying power from filled
     and reviewed sells only.
-14. The user can import official Robinhood account activity CSV files and
+15. The user can import official Robinhood account activity CSV files and
     realized gain/loss CSV files. Imported rows normalize to buys, sells,
     dividends, interest, transfers, fees, or unknown rows with reconciliation
     states such as matched, needs review, missing basis, missing proceeds,
     possible wash sale, and unsupported row.
-15. Robinhood imported rows must be accepted before they affect buying power,
+16. Robinhood imported rows must be accepted before they affect buying power,
     pay-yourself, or reinvest cash. Accepted sell rows map into reviewed
     sell-fill records; matching realized gain/loss rows take precedence over
     account-activity sell rows for proceeds, basis, realized P/L, holding
     period, and wash-sale fields.
-16. Robinhood tax-planning buckets aggregate accepted short-term and long-term
+17. Robinhood tax-planning buckets aggregate accepted short-term and long-term
     realized gain/loss, wash-sale disallowed losses, dividends/interest,
     reserve estimate, pay-yourself set-aside, and remaining reinvestable cash.
-17. Reinvest-cash planning uses remaining filled-sell buying power after reserve,
+18. Reinvest-cash planning uses remaining filled-sell buying power after reserve,
     pay-yourself, and manually marked reinvestments, then lists current holdings,
     watchlist/research ideas, and cash as manual places to review.
-18. Research watchlist helpers group current holdings and placeholder candidates
+19. Research watchlist helpers group current holdings and placeholder candidates
     by AI-stack layer, calculate manual checklist completeness, and filter the
     candidate list by layer, score, holding status, and missing inputs.
-19. The user can run research for the selected symbol or selected layer. The
+20. The user can run research for the selected symbol or selected layer. The
     research provider returns recent-news, investor, filing, earnings, and
     sector-context source metadata; the app drafts thesis, catalyst,
     invalidation, risk notes, review date, and source notes into the editable
     card.
-20. The user can queue a Codex research request for the selected symbol. The app
+21. The user can queue a Codex research request for the selected symbol. The app
     creates a structured request JSON for manual worker processing, then can
     import a local result JSON only after schema, symbol/request, source
     metadata, and non-recommendation validation pass.
-21. Tests verify that holding summaries follow the current user-provided list,
+22. On each accepted local state change, the persistence boundary writes a
+    versioned snapshot. The settings panel exposes a deliberate reset action
+    that clears saved browser state and reloads seed defaults.
+23. Tests verify that holding summaries follow the current user-provided list,
     do not invent lot data, and that portfolio/profit-lock/cockpit math remains
     stable. Research-provider tests cover source metadata, stale/empty states,
     draft normalization, and non-recommendation copy. Codex queue tests cover
@@ -221,6 +232,11 @@ AI-drafted / Needs review.
 - Share counts and average cost are manual local inputs; source-controlled seed
   data and generated rows must not invent lot details.
 - Source-controlled data must never include brokerage credentials or secrets.
+- Local persistence snapshots are browser-local, typed, and versioned. Invalid
+  JSON, unsupported schema versions, or malformed core arrays must fail visibly
+  without replacing current app state.
+- Clearing local state must be deliberate and visible; it resets to seed/default
+  data rather than silently deleting individual records.
 - Market data may be live IEX, delayed, cached, or mock, and the UI must label
   the source/timestamp clearly.
 - Default concentration rules warn at 25% and draft trim scenarios at 30%
