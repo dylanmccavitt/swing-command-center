@@ -11,6 +11,7 @@ export type ResearchSourceType =
   | 'sec_filings'
   | 'earnings_call'
   | 'sector_context'
+  | 'analyst_context'
 
 export type ResearchSourceFreshness = 'fresh' | 'stale'
 
@@ -60,6 +61,9 @@ export type ResearchDraftFields = Pick<
   | 'invalidation'
   | 'riskNotes'
   | 'sourceNotes'
+  | 'plannedEntry'
+  | 'stop'
+  | 'target'
   | 'reviewDate'
 >
 
@@ -283,6 +287,9 @@ export function buildResearchDraftFromBundle(
       invalidation: `Rework the thesis if sourced checks show ${layerContext.risk}, or if company commentary no longer supports the AI-stack role.`,
       riskNotes: `Key risks to verify: ${layerContext.risk}. Treat this as a research draft until source notes are reviewed manually.`,
       sourceNotes: formatSourceNotes(bundle),
+      plannedEntry: '',
+      stop: '',
+      target: '',
       reviewDate: formatDateInput(reviewDate),
     },
   })
@@ -302,6 +309,9 @@ export function normalizeResearchDraft(draft: ResearchDraft): ResearchDraft {
       invalidation: normalizeText(draft.fields.invalidation),
       riskNotes: normalizeText(draft.fields.riskNotes),
       sourceNotes: normalizeSourceNotes(draft.fields.sourceNotes),
+      plannedEntry: normalizeText(draft.fields.plannedEntry),
+      stop: normalizeText(draft.fields.stop),
+      target: normalizeText(draft.fields.target),
       reviewDate: normalizeDateInput(draft.fields.reviewDate, draftedAt),
     },
   }
@@ -319,6 +329,8 @@ export function describeResearchSourceType(type: ResearchSourceType): string {
       return 'Earnings calls'
     case 'sector_context':
       return 'Sector context'
+    case 'analyst_context':
+      return 'Analyst context'
   }
 }
 

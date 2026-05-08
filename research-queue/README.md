@@ -11,5 +11,7 @@ This folder is for local Codex/ChatGPT-assisted research artifacts.
   shape survives fresh checkouts.
 
 The app validates result JSON before importing it into an editable research card
-as AI-drafted / Needs review. It does not call OpenAI APIs or require an API
-key.
+as AI-drafted / Needs review. Results should be short stock reports with
+source-reported analyst target/rating context and editable entry/risk/target
+context, not buy/sell instructions. The app does not call OpenAI APIs or
+require an API key.

@@ -37,17 +37,17 @@ type ScoreCheck = {
 
 const SCORE_CHECKS: ScoreCheck[] = [
   {
-    label: 'Thesis',
+    label: 'Stock brief',
     points: 15,
     isComplete: (card) => hasText(card.research.thesis),
   },
   {
-    label: 'Catalyst',
+    label: 'Watch list',
     points: 10,
     isComplete: (card) => hasText(card.research.catalyst),
   },
   {
-    label: 'Research invalidation',
+    label: 'Thesis break',
     points: 15,
     isComplete: (card) => hasText(card.research.invalidation),
   },
@@ -57,7 +57,7 @@ const SCORE_CHECKS: ScoreCheck[] = [
     isComplete: (card) => hasText(card.research.riskNotes),
   },
   {
-    label: 'Entry/stop/target plan',
+    label: 'Entry/risk/analyst targets',
     points: 15,
     isComplete: (card) =>
       hasText(card.research.plannedEntry) &&

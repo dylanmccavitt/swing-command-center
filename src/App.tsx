@@ -1185,8 +1185,8 @@ function ResearchCardEditor(props: {
       </div>
 
       <p className="state-note">
-        Manual checklist only. This does not rank expected returns or generate
-        guaranteed trade recommendations.
+        Manual checklist only. Source-reported analyst targets and setup levels
+        are context, not trade instructions.
       </p>
 
       <ResearchRunDesk
@@ -1207,21 +1207,21 @@ function ResearchCardEditor(props: {
 
       <div className="research-fields">
         <TextAreaField
-          label="Thesis"
+          label="Stock brief"
           value={card.research.thesis}
           onChange={(value) =>
             props.onUpdateResearch(card.symbol, 'thesis', value)
           }
         />
         <TextAreaField
-          label="Catalyst"
+          label="What to watch"
           value={card.research.catalyst}
           onChange={(value) =>
             props.onUpdateResearch(card.symbol, 'catalyst', value)
           }
         />
         <TextAreaField
-          label="Invalidation"
+          label="Thesis break"
           value={card.research.invalidation}
           onChange={(value) =>
             props.onUpdateResearch(card.symbol, 'invalidation', value)
@@ -1235,7 +1235,7 @@ function ResearchCardEditor(props: {
           }
         />
         <TextAreaField
-          label="Source notes"
+          label="Analyst/source notes"
           value={card.research.sourceNotes}
           onChange={(value) =>
             props.onUpdateResearch(card.symbol, 'sourceNotes', value)
@@ -1245,21 +1245,21 @@ function ResearchCardEditor(props: {
 
       <div className="compact-field-grid">
         <TextField
-          label="Planned entry"
+          label="Entry context"
           value={card.research.plannedEntry}
           onChange={(value) =>
             props.onUpdateResearch(card.symbol, 'plannedEntry', value)
           }
         />
         <TextField
-          label="Stop"
+          label="Risk level"
           value={card.research.stop}
           onChange={(value) =>
             props.onUpdateResearch(card.symbol, 'stop', value)
           }
         />
         <TextField
-          label="Target"
+          label="Analyst targets"
           value={card.research.target}
           onChange={(value) =>
             props.onUpdateResearch(card.symbol, 'target', value)

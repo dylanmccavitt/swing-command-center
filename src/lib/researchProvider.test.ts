@@ -107,6 +107,9 @@ describe('research draft normalization', () => {
         invalidation: '  ',
         riskNotes: 'Risk   notes',
         sourceNotes: ' News: source  \n\n  Filing: source ',
+        plannedEntry: '  Source entry   context ',
+        stop: ' Risk   level ',
+        target: ' Analyst   targets ',
         reviewDate: 'not-a-date',
       },
     } satisfies ResearchDraft)
@@ -118,6 +121,9 @@ describe('research draft normalization', () => {
       invalidation: '',
       riskNotes: 'Risk notes',
       sourceNotes: 'News: source\nFiling: source',
+      plannedEntry: 'Source entry context',
+      stop: 'Risk level',
+      target: 'Analyst targets',
       reviewDate: '2026-05-14',
     })
     expect(normalized.disclosure).toBe(RESEARCH_DRAFT_DISCLOSURE)

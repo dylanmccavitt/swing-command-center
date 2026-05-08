@@ -45,6 +45,9 @@ describe('Codex research queue request creation', () => {
       'invalidation',
       'riskNotes',
       'sourceNotes',
+      'plannedEntry',
+      'stop',
+      'target',
       'reviewDate',
     ])
     expect(request.requestedOutput.sourceMetadata).toEqual([
@@ -97,16 +100,22 @@ describe('Codex research result validation', () => {
     }
 
     expect(result.result.fields).toMatchObject({
-      thesis:
-        'NVIDIA remains a manual-review accelerator exposure with data-center demand to verify.',
+        thesis:
+        'NVIDIA remains a manual-review accelerator stock brief with data-center demand to verify.',
+      plannedEntry:
+        'Source context only: compare current price with the latest close and recent support before drafting an entry.',
+      stop:
+        'Source context only: use invalidation and support levels for manual risk planning.',
+      target:
+        'Source context only: analyst target range was reviewed but no app target is assigned.',
       sourceNotes:
-        'NVIDIA IR: FY26 Q1 materials reviewed for data-center and margin commentary.\nSEC filing: 10-Q reviewed for export-control and supply-chain risk language.',
+        'Analyst context: consensus target range reviewed from public analyst summary; not an app rating.\nNVIDIA IR: FY26 Q1 materials reviewed for data-center and margin commentary.\nSEC filing: 10-Q reviewed for export-control and supply-chain risk language.',
       reviewDate: '2026-05-14',
     })
     expect(result.draft).toMatchObject({
       symbol: 'NVDA',
       reviewState: 'needs_review',
-      sourceCount: 2,
+      sourceCount: 3,
       disclosure: RESEARCH_DRAFT_DISCLOSURE,
     })
     expect(result.sources[0]).toMatchObject({
@@ -159,11 +168,11 @@ describe('Codex research result validation', () => {
         'Result requestId does not match the queued request.',
         'Result symbol does not match the selected card.',
         'fields.reviewDate must be a YYYY-MM-DD date.',
-        'sources[0].type must be one of recent_news, investor_relations, sec_filings, earnings_call, sector_context.',
+        'sources[0].type must be one of recent_news, investor_relations, sec_filings, earnings_call, sector_context, analyst_context.',
         'sources[0].url must be a valid http(s) URL.',
         'sources[0].accessedAt must be a valid ISO timestamp.',
         'publishedAt must be a string or null.',
-        'Result contains recommendation, buy/sell, guaranteed-outcome, or rating-style copy.',
+        'Result contains direct recommendation, buy/sell instruction, or guaranteed-outcome copy.',
       ]),
     )
   })
@@ -172,6 +181,7 @@ describe('Codex research result validation', () => {
     const guardrailCopy = CODEX_RESEARCH_QUEUE_GUARDRAILS.join(' ')
 
     expect(guardrailCopy).toContain('manual review only')
+    expect(guardrailCopy).toContain('analyst ratings')
     expect(guardrailCopy).toContain('do not call OpenAI APIs')
     expect(guardrailCopy).toContain('Do not log in to brokerage accounts')
     expect(guardrailCopy).toContain('buy/sell instructions')
@@ -189,7 +199,7 @@ function buildValidResult(): CodexResearchResult {
     disclosure: RESEARCH_DRAFT_DISCLOSURE,
     fields: {
       thesis:
-        'NVIDIA remains a manual-review accelerator exposure with data-center demand to verify.',
+        'NVIDIA remains a manual-review accelerator stock brief with data-center demand to verify.',
       catalyst:
         'Check data-center revenue, Blackwell supply commentary, and customer concentration in sourced materials.',
       invalidation:
@@ -197,7 +207,13 @@ function buildValidResult(): CodexResearchResult {
       riskNotes:
         'Export controls, supply constraints, and elevated expectations need source-by-source review.',
       sourceNotes:
-        'NVIDIA IR: FY26 Q1 materials reviewed for data-center and margin commentary.\nSEC filing: 10-Q reviewed for export-control and supply-chain risk language.',
+        'Analyst context: consensus target range reviewed from public analyst summary; not an app rating.\nNVIDIA IR: FY26 Q1 materials reviewed for data-center and margin commentary.\nSEC filing: 10-Q reviewed for export-control and supply-chain risk language.',
+      plannedEntry:
+        'Source context only: compare current price with the latest close and recent support before drafting an entry.',
+      stop:
+        'Source context only: use invalidation and support levels for manual risk planning.',
+      target:
+        'Source context only: analyst target range was reviewed but no app target is assigned.',
       reviewDate: '2026-05-14',
     },
     sources: [
@@ -220,6 +236,17 @@ function buildValidResult(): CodexResearchResult {
         accessedAt: '2026-05-07T15:58:00.000Z',
         publishedAt: null,
         notes: 'Checked filing search for export-control and supply-chain risk language.',
+      },
+      {
+        id: 'analyst-targets',
+        type: 'analyst_context',
+        title: 'NVIDIA analyst target summary',
+        url: 'https://www.nasdaq.com/market-activity/stocks/nvda/analyst-research',
+        publisher: 'Nasdaq',
+        accessedAt: '2026-05-07T15:59:00.000Z',
+        publishedAt: null,
+        notes:
+          'Reviewed public analyst target context as source-reported data only.',
       },
     ],
   }

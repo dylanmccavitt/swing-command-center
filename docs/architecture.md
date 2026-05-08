@@ -74,8 +74,9 @@ AI-drafted / Needs review.
 - Research-draft boundary: generated research drafts must stay behind a typed
   `ResearchProvider`, show source metadata, write into editable fields only,
   and remain marked AI-drafted / needs review until the user reviews them.
-  Drafts must not include guaranteed recommendations, buy/sell instructions,
-  brokerage access, or order execution.
+  Drafts may source-report analyst ratings, target prices, and option strike
+  context, but must not create their own rating, guarantee an outcome, write
+  buy/sell instructions, access brokerage accounts, or execute orders.
 - Codex queue boundary: local request/result JSON can be generated and imported,
   but the app must not call OpenAI APIs, require API keys, silently invoke a
   Codex subscription, or commit generated research artifacts. Result JSON must

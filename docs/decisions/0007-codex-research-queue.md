@@ -3,9 +3,9 @@
 ## Chosen
 
 Add a local JSON request/result queue for Codex or ChatGPT-assisted research.
-The app creates structured request files, validates manually produced result
-files, and imports valid drafts into the existing editable research card as
-AI-drafted / Needs review.
+The app creates structured request files, validates manually produced short
+stock-report result files, and imports valid drafts into the existing editable
+research card as AI-drafted / Needs review.
 
 ## Why
 
@@ -39,5 +39,6 @@ and hidden automation while preserving typed validation and source metadata.
   the standard manual-review disclosure.
 - Invalid, missing, pending, imported, and error states are visible in the
   research card UI.
-- Imported copy must not be framed as a recommendation, rating, guaranteed
-  outcome, price target, or buy/sell instruction.
+- Imported copy may source-report analyst ratings, target prices, target-price
+  ranges, and option strike context, but must not create its own rating,
+  guarantee an outcome, or write buy/sell instructions.

@@ -76,11 +76,14 @@
               "invalidation",
               "riskNotes",
               "sourceNotes",
+              "plannedEntry",
+              "stop",
+              "target",
               "reviewDate"
             ]
           },
-          "minItems": 6,
-          "maxItems": 6,
+          "minItems": 9,
+          "maxItems": 9,
           "uniqueItems": true
         },
         "sourceMetadata": {

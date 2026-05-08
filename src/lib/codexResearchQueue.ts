@@ -26,7 +26,7 @@ export const CODEX_RESEARCH_QUEUE_GUARDRAILS = [
   'Use browser, Chrome, ChatGPT, or Deep Research manually; do not call OpenAI APIs from this app.',
   'Do not include API keys, brokerage credentials, account numbers, private holdings, or copied paywalled article text.',
   'Do not log in to brokerage accounts, scrape brokerage data, place orders, or automate trading.',
-  'Return research drafts for manual review only; do not write guaranteed outcomes, ratings, or buy/sell instructions.',
+  'Return a concise stock brief for manual review only; source-report analyst ratings, target prices, and option strike context without making your own rating or buy/sell instructions.',
   'Use source URLs, accessed timestamps, and short source notes so the user can verify every claim.',
 ] as const
 
@@ -36,6 +36,9 @@ export type CodexResearchRequestedField =
   | 'invalidation'
   | 'riskNotes'
   | 'sourceNotes'
+  | 'plannedEntry'
+  | 'stop'
+  | 'target'
   | 'reviewDate'
 
 export type CodexResearchRequest = {
@@ -89,6 +92,9 @@ export type CodexResearchResultFields = Pick<
   | 'invalidation'
   | 'riskNotes'
   | 'sourceNotes'
+  | 'plannedEntry'
+  | 'stop'
+  | 'target'
   | 'reviewDate'
 >
 
@@ -127,6 +133,9 @@ const REQUESTED_FIELDS: CodexResearchRequestedField[] = [
   'invalidation',
   'riskNotes',
   'sourceNotes',
+  'plannedEntry',
+  'stop',
+  'target',
   'reviewDate',
 ]
 
@@ -147,11 +156,13 @@ const RESEARCH_SOURCE_TYPES: ResearchSourceType[] = [
   'sec_filings',
   'earnings_call',
   'sector_context',
+  'analyst_context',
 ]
 
 const PROHIBITED_RECOMMENDATION_PATTERNS = [
   /\b(buy|sell)\s+(now|shares?|the stock|this stock|this name)\b/i,
-  /\b(strong buy|strong sell|price target|guaranteed|risk-free)\b/i,
+  /\b(recommend|recommendation)\s+(buying|selling|a buy|a sell|buy|sell)\b/i,
+  /\b(guaranteed|risk-free)\b/i,
   /\b(will definitely|cannot lose|sure thing)\b/i,
 ]
 
@@ -282,11 +293,14 @@ export function validateCodexResearchResult(
     fields.invalidation,
     fields.riskNotes,
     fields.sourceNotes,
+    fields.plannedEntry,
+    fields.stop,
+    fields.target,
   ].join('\n')
 
   if (containsProhibitedRecommendationCopy(recommendationText)) {
     errors.push(
-      'Result contains recommendation, buy/sell, guaranteed-outcome, or rating-style copy.',
+      'Result contains direct recommendation, buy/sell instruction, or guaranteed-outcome copy.',
     )
   }
 
@@ -361,6 +375,9 @@ function validateResultFields(
       invalidation: '',
       riskNotes: '',
       sourceNotes: '',
+      plannedEntry: '',
+      stop: '',
+      target: '',
       reviewDate: normalizeReviewDate('', draftedAt, errors),
     }
   }
@@ -371,6 +388,9 @@ function validateResultFields(
     invalidation: normalizeText(readString(value, 'invalidation', errors)),
     riskNotes: normalizeText(readString(value, 'riskNotes', errors)),
     sourceNotes: normalizeMultilineText(readString(value, 'sourceNotes', errors)),
+    plannedEntry: normalizeText(readString(value, 'plannedEntry', errors)),
+    stop: normalizeText(readString(value, 'stop', errors)),
+    target: normalizeText(readString(value, 'target', errors)),
     reviewDate: normalizeReviewDate(
       readString(value, 'reviewDate', errors),
       draftedAt,
