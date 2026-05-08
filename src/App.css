@@ -1039,7 +1039,9 @@ button:focus-visible {
 .trade-journal-desk,
 .journal-entry-list,
 .sell-fill-workflow,
-.sell-fill-list {
+.sell-fill-list,
+.robinhood-import-panel,
+.robinhood-row-list {
   display: grid;
   gap: 12px;
   min-width: 0;
@@ -1335,6 +1337,27 @@ button:focus-visible {
   gap: 8px;
 }
 
+.robinhood-import-panel {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.robinhood-file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  padding: 10px;
+}
+
+.robinhood-tax-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .buying-power-summary {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -1365,7 +1388,8 @@ button:focus-visible {
 .manual-ticket-card,
 .journal-entry-card,
 .profit-cash-card,
-.sell-fill-card {
+.sell-fill-card,
+.robinhood-row-card {
   display: grid;
   gap: 10px;
   min-width: 0;
@@ -1388,6 +1412,14 @@ button:focus-visible {
 }
 
 .sell-fill-card.canceled {
+  border-color: rgba(174, 61, 52, 0.35);
+}
+
+.robinhood-row-card.accepted {
+  border-color: rgba(36, 107, 87, 0.35);
+}
+
+.robinhood-row-card.rejected {
   border-color: rgba(174, 61, 52, 0.35);
 }
 
@@ -1418,6 +1450,7 @@ button:focus-visible {
 .ticket-state.executed,
 .ticket-state.result,
 .ticket-state.filled,
+.ticket-state.accepted,
 .ticket-state.reviewed,
 .risk-chip.within_rules {
   border-color: rgba(36, 107, 87, 0.35);
@@ -1426,6 +1459,7 @@ button:focus-visible {
 }
 
 .ticket-state.needs_input,
+.ticket-state.needs_review,
 .ticket-state.planned,
 .ticket-state.ordered,
 .ticket-state.missing_input {
@@ -1436,9 +1470,42 @@ button:focus-visible {
 
 .ticket-state.mistake,
 .ticket-state.canceled,
+.ticket-state.rejected,
 .ticket-state.invalid {
   border-color: rgba(174, 61, 52, 0.35);
   background: rgba(174, 61, 52, 0.1);
+  color: var(--red);
+}
+
+.reconciliation-pill {
+  width: fit-content;
+  max-width: 190px;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1.2;
+  padding: 4px 6px;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.reconciliation-pill.matched {
+  border-color: rgba(36, 107, 87, 0.35);
+  color: var(--accent);
+}
+
+.reconciliation-pill.needs_review,
+.reconciliation-pill.missing_basis,
+.reconciliation-pill.missing_proceeds,
+.reconciliation-pill.possible_wash_sale {
+  border-color: rgba(165, 111, 26, 0.35);
+  color: var(--amber);
+}
+
+.reconciliation-pill.unsupported_row {
+  border-color: rgba(174, 61, 52, 0.35);
   color: var(--red);
 }
 
@@ -1709,6 +1776,7 @@ dd {
   .level-output-grid,
   .sell-fill-form,
   .buying-power-summary,
+  .robinhood-tax-grid,
   .journal-rule-grid,
   .journal-summary-grid,
   .profit-cash-summary,
@@ -1746,6 +1814,7 @@ dd {
   .buying-power-controls,
   .sell-fill-import-grid,
   .buying-power-summary,
+  .robinhood-tax-grid,
   .journal-rule-grid,
   .journal-summary-grid,
   .profit-cash-summary,
