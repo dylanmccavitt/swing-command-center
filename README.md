@@ -62,16 +62,19 @@ Do not commit `.env.local`.
 
 ## How I Use It
 
-1. Add the holdings I want to model, then enter shares and average cost.
-2. Review portfolio value, unrealized P/L, position size, and watchlist
-   movement.
-3. Use the plan builder to draft gain-lock or price plans.
-4. Turn plans into manual trade tickets.
-5. Add journal entries after planning or manually executing a trade.
-6. Review the profit cash plan after realized gains are logged.
+1. Start in Cockpit to review portfolio value, unrealized P/L, cash runway,
+   concentration, watchlist movement, and manual tickets.
+2. Use Research to move through layer watchlists, source-backed cards, candidate
+   filters, and the Codex queue.
+3. Use Planner to draft target/stop scenarios and convert them into manual
+   profit-lock tickets.
+4. Use Journal to filter planned trades, executed trades, mistakes, results,
+   realized P/L, and tax notes.
+5. Use Cash plan to review realized profit, reserve, pay-myself, and redeploy
+   distribution.
+6. Use Import to preview Robinhood CSV rows, review matches, reconcile totals,
+   and apply accepted sell fills.
 7. Export journal data when I want a tax review summary.
-8. Use the Codex research queue when I want a structured research prompt and an
-   import path for reviewed notes.
 
 ## Checks
 
