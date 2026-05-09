@@ -1091,6 +1091,14 @@ export function useCommandCenterState() {
     )
   }
 
+  function clearRobinhoodImportRows() {
+    setRobinhoodImports([])
+    setRobinhoodRows([])
+    setRobinhoodImportMessage(
+      'Cleared Robinhood CSV rows. Upload a fresh Robinhood export to rebuild the preview.',
+    )
+  }
+
   function addJournalEntryFromTicket(
     ticket: ManualTradeTicket,
     status: TradeJournalEntryStatus,
@@ -1517,6 +1525,7 @@ export function useCommandCenterState() {
       addManualMistakeEntry,
       addSellFill,
       applyAcceptedRobinhoodRows,
+      clearRobinhoodImportRows,
       exportTradeJournal,
       importCodexResearchResult,
       importRobinhoodCsvFile,

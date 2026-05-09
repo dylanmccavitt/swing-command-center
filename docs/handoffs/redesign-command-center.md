@@ -9,8 +9,9 @@ Cockpit, Research, Planner, Journal, Cash plan, and Import. Planner includes a
 manual holdings/lots editor for adding symbols and updating shares or average
 cost. Follow-up import debugging fixed Robinhood account activity CSV parsing
 for quoted multi-line CUSIP descriptions and keeps failed imports from falling
-back to fixture rows. The redesign keeps the locked `src/data` layer unchanged
-and moves UI state wiring behind typed state hooks.
+back to fixture rows. Import also has a clear action for removing bad local CSV
+rows before re-uploading. The redesign keeps the locked `src/data` layer
+unchanged and moves UI state wiring behind typed state hooks.
 
 ## Next
 

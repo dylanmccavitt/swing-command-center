@@ -32,6 +32,10 @@ export function Import(props: { state: CommandCenterState }) {
     props.state.robinhoodImports.length === 0 &&
     !props.state.robinhoodImportMessage
   const rows = hasImportedRows ? props.state.robinhoodRows : isFixture ? fixtureRows : []
+  const canClearImport =
+    hasImportedRows ||
+    props.state.robinhoodImports.length > 0 ||
+    Boolean(props.state.robinhoodImportMessage)
   const acceptedRows = rows.filter((row) => row.reviewState === 'accepted')
   const csvRealized = rows.reduce((total, row) => total + (row.realizedGainLoss ?? 0), 0)
   const journalRealized = isFixture
@@ -70,6 +74,14 @@ export function Import(props: { state: CommandCenterState }) {
         <div className="actions">
           <button className="btn" type="button">
             Open template
+          </button>
+          <button
+            className="btn"
+            disabled={!canClearImport}
+            type="button"
+            onClick={props.state.actions.clearRobinhoodImportRows}
+          >
+            Clear import
           </button>
           <CsvButton
             label="Account CSV"
