@@ -206,6 +206,12 @@ const LAYER_CONTEXT: Record<AiStackLayerId, LayerContext> = {
     focus: 'data-center power demand, contract duration, generation scarcity, and grid policy',
     risk: 'regulatory resets, commodity exposure, and demand expectation reversals',
   },
+  general_watchlist: {
+    url: 'https://www.sec.gov/search-filings',
+    title: 'General equity research context',
+    focus: 'company news, filings, earnings commentary, valuation, and thesis fit',
+    risk: 'thesis drift, regulatory issues, margin pressure, competition, and valuation resets',
+  },
 }
 
 export function createCuratedResearchProvider(
@@ -342,12 +348,7 @@ function buildResearchSources(input: {
 }): ResearchSource[] {
   const sourceConfig = COMPANY_SOURCES[input.card.symbol]
   const layerContext = LAYER_CONTEXT[input.card.stackLayer]
-
-  if (!sourceConfig) {
-    return []
-  }
-
-  return [
+  const sources = [
     buildSource({
       ...input,
       type: 'recent_news',
@@ -356,14 +357,22 @@ function buildResearchSources(input: {
       summary:
         'Open recent headlines for company-specific demand, margin, product, regulatory, or financing updates.',
     }),
-    buildSource({
-      ...input,
-      type: 'investor_relations',
-      title: `${input.card.name} investor relations`,
-      url: sourceConfig.investorUrl,
-      summary:
-        'Use company materials for presentations, quarterly releases, event decks, and official guidance.',
-    }),
+  ]
+
+  if (sourceConfig) {
+    sources.push(
+      buildSource({
+        ...input,
+        type: 'investor_relations',
+        title: `${input.card.name} investor relations`,
+        url: sourceConfig.investorUrl,
+        summary:
+          'Use company materials for presentations, quarterly releases, event decks, and official guidance.',
+      }),
+    )
+  }
+
+  sources.push(
     buildSource({
       ...input,
       type: 'sec_filings',
@@ -374,14 +383,22 @@ function buildResearchSources(input: {
       summary:
         'Review recent 10-K, 10-Q, 8-K, and foreign issuer filings where available before relying on the draft.',
     }),
-    buildSource({
-      ...input,
-      type: 'earnings_call',
-      title: `${input.card.name} earnings materials`,
-      url: sourceConfig.earningsUrl,
-      summary:
-        'Check latest results, prepared remarks, call materials, and management commentary for catalyst and risk updates.',
-    }),
+  )
+
+  if (sourceConfig) {
+    sources.push(
+      buildSource({
+        ...input,
+        type: 'earnings_call',
+        title: `${input.card.name} earnings materials`,
+        url: sourceConfig.earningsUrl,
+        summary:
+          'Check latest results, prepared remarks, call materials, and management commentary for catalyst and risk updates.',
+      }),
+    )
+  }
+
+  sources.push(
     buildSource({
       ...input,
       type: 'sector_context',
@@ -389,7 +406,9 @@ function buildResearchSources(input: {
       url: layerContext.url,
       summary: `Use sector context for ${layerContext.focus}.`,
     }),
-  ]
+  )
+
+  return sources
 }
 
 function buildSource(

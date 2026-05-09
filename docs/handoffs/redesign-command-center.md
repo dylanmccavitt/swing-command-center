@@ -10,8 +10,9 @@ manual holdings/lots editor for adding symbols and updating shares or average
 cost. Follow-up import debugging fixed Robinhood account activity CSV parsing
 for quoted multi-line CUSIP descriptions and keeps failed imports from falling
 back to fixture rows. Import also has a clear action for removing bad local CSV
-rows before re-uploading. The redesign keeps the locked `src/data` layer
-unchanged and moves UI state wiring behind typed state hooks.
+rows before re-uploading. Research now includes a General watchlist lane, HIMS,
+arbitrary ticker tracking, and live quote display for research cards. The
+redesign keeps UI state wiring behind typed state hooks.
 
 ## Next
 
@@ -26,6 +27,8 @@ Review the PR after it is opened. Do not merge until the review is complete.
   modeled dashboard renders without changing source seed data.
 - Robinhood CSV exports can contain line breaks inside quoted description
   cells. Keep parser changes covered by `src/lib/robinhoodCsv.test.ts`.
+- Existing saved local state is merged with new default research cards so HIMS
+  appears without wiping user-entered notes.
 
 ## Files
 
@@ -39,7 +42,13 @@ Review the PR after it is opened. Do not merge until the review is complete.
 - `src/state/`
 - `src/components/`
 - `src/components/HoldingsEditor.tsx`
+- `src/data/seedWatchlist.ts`
+- `src/lib/localPersistence.ts`
+- `src/lib/researchProvider.ts`
 - `src/lib/robinhoodCsv.ts`
+- `src/lib/localPersistence.test.ts`
+- `src/lib/researchProvider.test.ts`
+- `src/lib/researchWatchlist.test.ts`
 - `src/lib/robinhoodCsv.test.ts`
 - `docs/screenshots/dashboard.png`
 - `docs/screenshots/research.png`
@@ -51,7 +60,7 @@ Review the PR after it is opened. Do not merge until the review is complete.
 
 - `npm run lint`
 - `npm run typecheck`
-- `npm test -- --run src/lib/robinhoodCsv.test.ts`
+- `npm test -- --run src/lib/localPersistence.test.ts src/lib/researchWatchlist.test.ts src/lib/researchProvider.test.ts src/lib/robinhoodCsv.test.ts`
 - `npm test -- --run`
 - `npm run build`
 - `VITE_MARKET_DATA_MODE=mock npm run dev -- --port 5177`

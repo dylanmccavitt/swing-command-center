@@ -37,6 +37,9 @@ export function Import(props: { state: CommandCenterState }) {
     props.state.robinhoodImports.length > 0 ||
     Boolean(props.state.robinhoodImportMessage)
   const acceptedRows = rows.filter((row) => row.reviewState === 'accepted')
+  const rejectedRows = rows.filter((row) => row.reviewState === 'rejected')
+  const nextReviewRow =
+    rows.find((row) => row.reviewState === 'needs_review') ?? rows[0] ?? null
   const csvRealized = rows.reduce((total, row) => total + (row.realizedGainLoss ?? 0), 0)
   const journalRealized = isFixture
     ? csvRealized
@@ -50,9 +53,7 @@ export function Import(props: { state: CommandCenterState }) {
 
   function updateReview(rowId: string, state: RobinhoodNormalizedRow['reviewState']) {
     if (isFixture) {
-      setReviewRow((current) =>
-        current?.id === rowId ? { ...current, reviewState: state } : current,
-      )
+      setReviewRow(null)
       return
     }
 
@@ -134,19 +135,9 @@ export function Import(props: { state: CommandCenterState }) {
                 <div className="num" key="fees">{formatCurrency(row.fees)}</div>,
                 <div className="num" key="type">
                   <span
-                    className={`card-status ${
-                      row.reconciliationStatus === 'matched'
-                        ? 'exec'
-                        : row.reconciliationStatus === 'unsupported_row'
-                          ? 'draft'
-                          : 'ready'
-                    }`}
+                    className={`card-status ${getImportRowStatusClass(row)}`}
                   >
-                    {row.reconciliationStatus === 'matched'
-                      ? 'match'
-                      : row.reviewState === 'needs_review'
-                        ? 'review'
-                        : getRobinhoodReconciliationLabel(row.reconciliationStatus)}
+                    {getImportRowStatusLabel(row)}
                   </span>
                 </div>,
               ],
@@ -158,7 +149,9 @@ export function Import(props: { state: CommandCenterState }) {
           <PanelHead kicker="reconcile" title="Match against journal" />
           <KV label="rows in csv" value={rows.length} />
           <KV label="matched" tone="pos" value={matched} />
+          <KV label="accepted" tone="pos" value={acceptedRows.length} />
           <KV label="review" value={review} />
+          <KV label="rejected" value={rejectedRows.length} />
           <KV label="unmapped" value={unmapped} />
           <div className="dash-rule" />
           <KV label="csv realized" tone="pos" value={formatCurrency(csvRealized)} />
@@ -173,15 +166,15 @@ export function Import(props: { state: CommandCenterState }) {
           <div className="actions" style={{ marginTop: 10 }}>
             <button
               className="btn"
-              disabled={rows.length === 0}
+              disabled={!nextReviewRow}
               type="button"
-              onClick={() => setReviewRow(rows[0] ?? null)}
+              onClick={() => setReviewRow(nextReviewRow)}
             >
               Map remaining
             </button>
             <button
               className="btn primary"
-              disabled={rows.length === 0}
+              disabled={acceptedRows.length === 0}
               type="button"
               onClick={() => {
                 buildSellFillsFromAcceptedRobinhoodRows(acceptedRows)
@@ -201,6 +194,40 @@ export function Import(props: { state: CommandCenterState }) {
       />
     </section>
   )
+}
+
+function getImportRowStatusLabel(row: RobinhoodNormalizedRow): string {
+  if (row.reviewState === 'accepted') {
+    return 'accepted'
+  }
+
+  if (row.reviewState === 'rejected') {
+    return 'rejected'
+  }
+
+  if (row.reconciliationStatus === 'matched') {
+    return 'match'
+  }
+
+  return row.reviewState === 'needs_review'
+    ? 'review'
+    : getRobinhoodReconciliationLabel(row.reconciliationStatus)
+}
+
+function getImportRowStatusClass(row: RobinhoodNormalizedRow): string {
+  if (row.reviewState === 'accepted') {
+    return 'exec'
+  }
+
+  if (row.reviewState === 'rejected') {
+    return 'draft'
+  }
+
+  if (row.reconciliationStatus === 'matched') {
+    return 'exec'
+  }
+
+  return row.reconciliationStatus === 'unsupported_row' ? 'draft' : 'ready'
 }
 
 function CsvButton(props: {

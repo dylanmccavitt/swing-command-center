@@ -64,16 +64,16 @@ Do not commit `.env.local`.
 
 1. Start in Cockpit to review portfolio value, unrealized P/L, cash runway,
    concentration, watchlist movement, and manual tickets.
-2. Use Research to move through layer watchlists, source-backed cards, candidate
-   filters, and the Codex queue.
+2. Use Research to track AI-stack names or general tickers, review live quotes,
+   move through source-backed cards, filter candidates, and use the Codex queue.
 3. Use Planner to enter holdings/lots, draft target/stop scenarios, and convert
    them into manual profit-lock tickets.
 4. Use Journal to filter planned trades, executed trades, mistakes, results,
    realized P/L, and tax notes.
 5. Use Cash plan to review realized profit, reserve, pay-myself, and redeploy
    distribution.
-6. Use Import to preview Robinhood CSV rows, review matches, reconcile totals,
-   and apply accepted sell fills.
+6. Use Import to preview Robinhood CSV rows, accept or reject matches, reconcile
+   totals, and apply accepted sell fills.
 7. Export journal data when I want a tax review summary.
 
 ## Checks

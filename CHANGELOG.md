@@ -6,6 +6,10 @@
   Research, Planner, Journal, Cash plan, and Import views.
 - Added a visible holdings/lots editor in Planner for adding symbols and
   updating shares or average cost.
+- Added a General watchlist research lane, HIMS research card, arbitrary ticker
+  tracking, and live quote display for research cards.
+- Made Robinhood CSV row review visible with accepted/rejected counts and
+  clearer apply behavior.
 - Added offline Geist font loading, dark/light theme tokens, reusable primitive
   components, keyboard navigation, and a command palette.
 - Preserved local-first market, research, journal, cash-plan, and Robinhood CSV

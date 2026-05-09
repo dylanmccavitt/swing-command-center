@@ -562,7 +562,10 @@ function normalizeSwingLocalStateSnapshot(
         manualLots,
         settingsForm,
         cashTargetInput,
-        researchCards,
+        researchCards: mergeDefaultResearchCards(
+          defaults.researchCards,
+          researchCards,
+        ),
         selectedResearchSymbol,
         researchFilters,
         selectedPlannerSymbol,
@@ -578,6 +581,18 @@ function normalizeSwingLocalStateSnapshot(
     message: 'Saved local cockpit state loaded.',
     warnings,
   }
+}
+
+function mergeDefaultResearchCards(
+  defaults: readonly SeedWatchlistItem[],
+  cards: readonly SeedWatchlistItem[],
+): SeedWatchlistItem[] {
+  const seenSymbols = new Set(cards.map((card) => card.symbol))
+
+  return cloneJson([
+    ...cards,
+    ...defaults.filter((card) => !seenSymbols.has(card.symbol)),
+  ])
 }
 
 function normalizeArray<T>(

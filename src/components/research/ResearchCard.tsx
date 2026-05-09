@@ -7,11 +7,13 @@ import {
   ScoreBar,
 } from '../primitives'
 import type { CommandCenterState } from '../../state/useCommandCenterState'
+import { formatCurrency } from '../../state/useCommandCenterState'
 import { RESEARCH_DRAFT_DISCLOSURE } from '../../lib/researchProvider'
 
 export function ResearchCard(props: { state: CommandCenterState }) {
   const card = props.state.selectedResearchCard
   const score = props.state.selectedResearchScore
+  const quote = card ? props.state.quotesBySymbol.get(card.symbol) : undefined
 
   if (!card) {
     return (
@@ -29,6 +31,14 @@ export function ResearchCard(props: { state: CommandCenterState }) {
         value={`${getAiStackLayerLabel(card.stackLayer)} · ${
           card.seedType === 'current_holding' ? 'current holding' : 'watchlist'
         }`}
+      />
+      <KV
+        label="live quote"
+        value={
+          quote
+            ? `${formatCurrency(quote.price)} · ${quote.source.toUpperCase()}`
+            : 'waiting for Alpaca'
+        }
       />
       <ScoreBar
         score={score?.scorePercent ?? 0}

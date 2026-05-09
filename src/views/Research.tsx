@@ -5,6 +5,7 @@ import {
 import { CodexQueue } from '../components/research/CodexQueue'
 import { LayerList } from '../components/research/LayerList'
 import { ResearchCard } from '../components/research/ResearchCard'
+import { TickerTracker } from '../components/research/TickerTracker'
 import {
   Hint,
   Panel,
@@ -24,7 +25,7 @@ export function Research(props: { state: CommandCenterState }) {
     <section className="view" data-view="research">
       <div className="page-head">
         <div>
-          <div className="kicker">— ai stack research</div>
+          <div className="kicker">— research universe</div>
           <h1 className="page-title">Research card</h1>
           <div className="breadcrumbs">
             workspace<span className="sep">/</span>research
@@ -62,10 +63,12 @@ export function Research(props: { state: CommandCenterState }) {
       <div className="research-grid">
         <Panel>
           <PanelHead
-            kicker="ai stack"
-            title="Layer watchlist"
+            kicker="watchlist"
+            title="Research lanes"
             pill={`${props.state.researchCards.length} cards`}
           />
+          <TickerTracker state={props.state} />
+          <div className="dash-rule" />
           <LayerList
             state={props.state}
             onSelect={(symbol) => props.state.actions.setSelectedResearchSymbol(symbol)}

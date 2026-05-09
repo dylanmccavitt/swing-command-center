@@ -127,6 +127,12 @@ type HoldingForm = {
   averageCost: string
 }
 
+type ResearchTickerForm = {
+  symbol: string
+  name: string
+  stackLayer: AiStackLayerId
+}
+
 type SellFillForm = {
   status: SellFillStatus
   symbol: string
@@ -226,9 +232,15 @@ const DEFAULT_RESEARCH_FILTERS: ResearchFiltersForm = {
 const DEFAULT_HOLDING_FORM: HoldingForm = {
   symbol: '',
   name: '',
-  stackLayer: 'hyperscalers',
+  stackLayer: 'general_watchlist',
   shares: '',
   averageCost: '',
+}
+
+const DEFAULT_RESEARCH_TICKER_FORM: ResearchTickerForm = {
+  symbol: '',
+  name: '',
+  stackLayer: 'general_watchlist',
 }
 
 const DEFAULT_SCENARIO_PLANNER_FORM: ScenarioPlannerForm = {
@@ -343,6 +355,8 @@ export function useCommandCenterState() {
   )
   const [holdingForm, setHoldingForm] =
     useState<HoldingForm>(DEFAULT_HOLDING_FORM)
+  const [researchTickerForm, setResearchTickerForm] =
+    useState<ResearchTickerForm>(DEFAULT_RESEARCH_TICKER_FORM)
   const [settingsForm, setSettingsForm] =
     useState<SettingsForm>(() => ({ ...initialLocalState.settingsForm }))
   const [selectedPlannerSymbol, setSelectedPlannerSymbol] = useState<string>(
@@ -738,6 +752,16 @@ export function useCommandCenterState() {
     }))
   }
 
+  function updateResearchTickerForm(
+    field: keyof ResearchTickerForm,
+    value: string,
+  ) {
+    setResearchTickerForm((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
   function addHolding(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
@@ -803,6 +827,53 @@ export function useCommandCenterState() {
     setSelectedPlannerSymbol(symbol)
     setSelectedResearchSymbol(symbol)
     setHoldingForm(DEFAULT_HOLDING_FORM)
+  }
+
+  function addResearchTicker(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const symbol = normalizeSymbolInput(researchTickerForm.symbol)
+
+    if (!symbol) {
+      return
+    }
+
+    const existingHolding = holdings.find((holding) => holding.symbol === symbol)
+    const existingCard = researchCards.find((card) => card.symbol === symbol)
+    const name =
+      researchTickerForm.name.trim() ||
+      existingCard?.name ||
+      existingHolding?.name ||
+      symbol
+    const seedType = existingHolding ? 'current_holding' : 'placeholder'
+
+    setResearchCards((current) => {
+      if (current.some((card) => card.symbol === symbol)) {
+        return current.map((card) =>
+          card.symbol === symbol
+            ? {
+                ...card,
+                name,
+                stackLayer: researchTickerForm.stackLayer,
+                seedType:
+                  card.seedType === 'current_holding' ? card.seedType : seedType,
+              }
+            : card,
+        )
+      }
+
+      return [
+        ...current,
+        buildManualWatchlistCard({
+          symbol,
+          name,
+          stackLayer: researchTickerForm.stackLayer,
+          seedType,
+        }),
+      ]
+    })
+    setSelectedResearchSymbol(symbol)
+    setResearchTickerForm(DEFAULT_RESEARCH_TICKER_FORM)
   }
 
   function removeHolding(symbol: string) {
@@ -968,6 +1039,7 @@ export function useCommandCenterState() {
     setRobinhoodImportMessage('')
     setBuyingPowerForm({ ...nextState.buyingPowerForm })
     setHoldingForm(DEFAULT_HOLDING_FORM)
+    setResearchTickerForm(DEFAULT_RESEARCH_TICKER_FORM)
     setIsPersistenceWriteEnabled(result.ok || result.status === 'unavailable')
     setPersistenceMessage(formatPersistenceClearMessage(result))
   }
@@ -1488,6 +1560,7 @@ export function useCommandCenterState() {
     realizedProfitSummary,
     researchCards,
     researchFilters,
+    researchTickerForm,
     researchLayerGroups,
     researchRuns,
     researchScoreBySymbol,
@@ -1523,6 +1596,7 @@ export function useCommandCenterState() {
       addHolding,
       addJournalEntryFromTicket,
       addManualMistakeEntry,
+      addResearchTicker,
       addSellFill,
       applyAcceptedRobinhoodRows,
       clearRobinhoodImportRows,
@@ -1545,6 +1619,7 @@ export function useCommandCenterState() {
       setSellFillImportText,
       updateBuyingPowerForm,
       updateHoldingForm,
+      updateResearchTickerForm,
       updateJournalEntry,
       updateManualLot,
       updatePayYourselfRule,

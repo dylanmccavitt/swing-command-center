@@ -65,6 +65,7 @@ export function RowReviewModal(props: {
           </button>
         </div>
         <div className="modal-body">
+          <KV label="review" value={row.reviewState.replaceAll('_', ' ')} />
           <KV label="status" value={getRobinhoodReconciliationLabel(row.reconciliationStatus)} />
           <KV label="trade date" value={row.tradeDate ?? 'missing'} />
           <KV label="quantity" value={row.quantity ?? 'missing'} />
