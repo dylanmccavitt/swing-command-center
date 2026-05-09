@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { SCENARIO_PLANNER_DISCLOSURE } from '../lib/scenarioPlanner'
+import { HoldingsEditor } from '../components/HoldingsEditor'
 import {
   Field,
   FieldRow,
@@ -213,6 +214,10 @@ export function Planner(props: { state: CommandCenterState }) {
             </button>
           </div>
         </Panel>
+      </div>
+
+      <div className="standalone-panel">
+        <HoldingsEditor state={props.state} />
       </div>
     </section>
   )

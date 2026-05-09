@@ -4,6 +4,8 @@
 
 - Redesigned the app into a Claude-Code-style command center shell with Cockpit,
   Research, Planner, Journal, Cash plan, and Import views.
+- Added a visible holdings/lots editor in Planner for adding symbols and
+  updating shares or average cost.
 - Added offline Geist font loading, dark/light theme tokens, reusable primitive
   components, keyboard navigation, and a command palette.
 - Preserved local-first market, research, journal, cash-plan, and Robinhood CSV

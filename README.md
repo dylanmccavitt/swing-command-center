@@ -66,8 +66,8 @@ Do not commit `.env.local`.
    concentration, watchlist movement, and manual tickets.
 2. Use Research to move through layer watchlists, source-backed cards, candidate
    filters, and the Codex queue.
-3. Use Planner to draft target/stop scenarios and convert them into manual
-   profit-lock tickets.
+3. Use Planner to enter holdings/lots, draft target/stop scenarios, and convert
+   them into manual profit-lock tickets.
 4. Use Journal to filter planned trades, executed trades, mistakes, results,
    realized P/L, and tax notes.
 5. Use Cash plan to review realized profit, reserve, pay-myself, and redeploy

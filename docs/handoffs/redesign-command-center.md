@@ -5,9 +5,10 @@
 Implemented the full redesign on branch `dylan/modest-mestorf-df80c0`.
 
 The app now uses the prototype shell and six-view cockpit:
-Cockpit, Research, Planner, Journal, Cash plan, and Import. The redesign keeps
-the locked `src/lib` and `src/data` layers unchanged and moves UI state wiring
-behind typed state hooks.
+Cockpit, Research, Planner, Journal, Cash plan, and Import. Planner includes a
+manual holdings/lots editor for adding symbols and updating shares or average
+cost. The redesign keeps the locked `src/lib` and `src/data` layers unchanged
+and moves UI state wiring behind typed state hooks.
 
 ## Next
 
@@ -32,6 +33,7 @@ Review the PR after it is opened. Do not merge until the review is complete.
 - `src/views/`
 - `src/state/`
 - `src/components/`
+- `src/components/HoldingsEditor.tsx`
 - `docs/screenshots/dashboard.png`
 - `docs/screenshots/research.png`
 - `docs/screenshots/journal.png`
