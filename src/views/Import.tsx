@@ -19,6 +19,7 @@ import {
 import type { CommandCenterState } from '../state/useCommandCenterState'
 import {
   formatCurrency,
+  formatSignedCurrency,
   getRobinhoodKindLabel,
   getRobinhoodReconciliationLabel,
 } from '../state/useCommandCenterState'
@@ -38,9 +39,34 @@ export function Import(props: { state: CommandCenterState }) {
     Boolean(props.state.robinhoodImportMessage)
   const acceptedRows = rows.filter((row) => row.reviewState === 'accepted')
   const rejectedRows = rows.filter((row) => row.reviewState === 'rejected')
+  const sellRows = rows.filter((row) => row.kind === 'sell')
+  const recognizedSellRows = sellRows.filter(
+    (row) => row.realizedGainLoss !== null,
+  )
+  const missingBasisSellRows = sellRows.filter(
+    (row) => row.proceeds !== null && row.realizedGainLoss === null,
+  )
+  const acceptedSellRows = acceptedRows.filter((row) => row.kind === 'sell')
+  const acceptedRecognizedSellRows = acceptedSellRows.filter(
+    (row) => row.realizedGainLoss !== null,
+  )
+  const acceptedMissingBasisSellRows = acceptedSellRows.filter(
+    (row) => row.proceeds !== null && row.realizedGainLoss === null,
+  )
+  const acceptedProceeds = acceptedSellRows.reduce(
+    (total, row) => total + (row.proceeds ?? 0),
+    0,
+  )
   const nextReviewRow =
     rows.find((row) => row.reviewState === 'needs_review') ?? rows[0] ?? null
-  const csvRealized = rows.reduce((total, row) => total + (row.realizedGainLoss ?? 0), 0)
+  const csvRealized = recognizedSellRows.reduce(
+    (total, row) => total + (row.realizedGainLoss ?? 0),
+    0,
+  )
+  const acceptedRealized = acceptedRecognizedSellRows.reduce(
+    (total, row) => total + (row.realizedGainLoss ?? 0),
+    0,
+  )
   const journalRealized = isFixture
     ? csvRealized
     : props.state.realizedProfitSummary.netRealizedTradingProfit
@@ -154,10 +180,45 @@ export function Import(props: { state: CommandCenterState }) {
           <KV label="rejected" value={rejectedRows.length} />
           <KV label="unmapped" value={unmapped} />
           <div className="dash-rule" />
-          <KV label="csv realized" tone="pos" value={formatCurrency(csvRealized)} />
-          <KV label="journal realized" tone="pos" value={formatCurrency(journalRealized)} />
-          <KV label="delta" value={formatCurrency(delta)} />
+          <KV
+            label="recognized P/L"
+            tone={csvRealized >= 0 ? 'pos' : 'neg'}
+            value={formatSignedCurrency(csvRealized)}
+          />
+          <KV
+            label="accepted P/L"
+            tone={acceptedRealized >= 0 ? 'pos' : 'neg'}
+            value={formatSignedCurrency(acceptedRealized)}
+          />
+          <KV
+            label="accepted proceeds"
+            value={formatCurrency(acceptedProceeds)}
+          />
+          <KV label="needs basis" value={missingBasisSellRows.length} />
+          <KV
+            label="journal realized"
+            tone={journalRealized >= 0 ? 'pos' : 'neg'}
+            value={formatSignedCurrency(journalRealized)}
+          />
+          <KV label="delta" value={formatSignedCurrency(delta)} />
           <div className="dash-rule" />
+          {missingBasisSellRows.length > 0 ? (
+            <Hint variant="warn">
+              {missingBasisSellRows.length} sell row
+              {missingBasisSellRows.length === 1 ? '' : 's'} have proceeds but
+              no imported cost basis. Account-activity CSV can show cash raised,
+              but realized P/L, reserve, and pay-myself need a realized
+              gain/loss CSV row or manual basis.
+            </Hint>
+          ) : null}
+          {acceptedMissingBasisSellRows.length > 0 ? (
+            <Hint variant="warn">
+              {acceptedMissingBasisSellRows.length} accepted sell row
+              {acceptedMissingBasisSellRows.length === 1 ? '' : 's'} will count
+              as buying-power proceeds, but reserve and pay-myself stay $0 until
+              basis is present.
+            </Hint>
+          ) : null}
           <Hint>{ROBINHOOD_CSV_DISCLOSURE}</Hint>
           <Hint>{SELL_FILL_DISCLOSURE}</Hint>
           {props.state.robinhoodImportMessage ? (

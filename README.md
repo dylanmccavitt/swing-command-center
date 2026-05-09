@@ -73,7 +73,9 @@ Do not commit `.env.local`.
 5. Use Cash plan to review realized profit, reserve, pay-myself, and redeploy
    distribution.
 6. Use Import to preview Robinhood CSV rows, accept or reject matches, reconcile
-   totals, and apply accepted sell fills.
+   totals, and apply accepted sell fills. Account activity CSVs can prove cash
+   proceeds; realized gain/loss CSVs or manual basis are needed before reserve
+   and pay-myself estimates are meaningful.
 7. Export journal data when I want a tax review summary.
 
 ## Checks

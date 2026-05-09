@@ -12,11 +12,17 @@ for quoted multi-line CUSIP descriptions and keeps failed imports from falling
 back to fixture rows. Import also has a clear action for removing bad local CSV
 rows before re-uploading. Research now includes a General watchlist lane, HIMS,
 arbitrary ticker tracking, and live quote display for research cards. The
-redesign keeps UI state wiring behind typed state hooks.
+redesign keeps UI state wiring behind typed state hooks. Follow-up CSV review
+clarity now separates account-activity proceeds from recognized realized P/L:
+accepted account-activity sells without basis count as redeployable proceeds
+but explicitly show missing basis, $0 reserve, and $0 pay-myself until a
+realized gain/loss CSV row or manual basis is present. README screenshots were
+regenerated from the running redesigned app.
 
 ## Next
 
-Review the PR after it is opened. Do not merge until the review is complete.
+Branch is ready to merge after the final push/PR merge step requested by the
+user.
 
 ## Risks
 
@@ -29,6 +35,8 @@ Review the PR after it is opened. Do not merge until the review is complete.
   cells. Keep parser changes covered by `src/lib/robinhoodCsv.test.ts`.
 - Existing saved local state is merged with new default research cards so HIMS
   appears without wiping user-entered notes.
+- Robinhood account-activity CSV exports do not include realized gain/loss or
+  cost basis. Do not infer those values from proceeds alone.
 
 ## Files
 
@@ -46,6 +54,7 @@ Review the PR after it is opened. Do not merge until the review is complete.
 - `src/lib/localPersistence.ts`
 - `src/lib/researchProvider.ts`
 - `src/lib/robinhoodCsv.ts`
+- `src/lib/robinhoodCsvMissingBasis.test.ts`
 - `src/lib/localPersistence.test.ts`
 - `src/lib/researchProvider.test.ts`
 - `src/lib/researchWatchlist.test.ts`
@@ -60,6 +69,7 @@ Review the PR after it is opened. Do not merge until the review is complete.
 
 - `npm run lint`
 - `npm run typecheck`
+- `npm test -- --run src/lib/robinhoodCsv.test.ts`
 - `npm test -- --run src/lib/localPersistence.test.ts src/lib/researchWatchlist.test.ts src/lib/researchProvider.test.ts src/lib/robinhoodCsv.test.ts`
 - `npm test -- --run`
 - `npm run build`

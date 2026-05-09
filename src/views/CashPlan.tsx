@@ -4,6 +4,7 @@ import {
   Field,
   FieldRow,
   Hint,
+  KV,
   Panel,
   PanelHead,
   SectionDivider,
@@ -16,6 +17,12 @@ export function CashPlan(props: { state: CommandCenterState }) {
   const reservePercent = props.state.portfolioModel.settings.taxReserveRatePercent
   const payPercent = props.state.payYourselfRule.percentOfNetAfterReserve
   const redeployPercent = Math.max(0, 100 - reservePercent - payPercent)
+  const buyingPower = props.state.buyingPowerSummary
+  const hasMissingBasis = buyingPower.missingInputCount > 0
+  const realizedLabel =
+    buyingPower.filledSellCount === 1
+      ? '1 filled/reviewed sell'
+      : `${buyingPower.filledSellCount} filled/reviewed sells`
 
   return (
     <section className="view" data-view="cash">
@@ -40,20 +47,28 @@ export function CashPlan(props: { state: CommandCenterState }) {
       <div className="cash-plan">
         <CashCell
           label="realized"
-          sub={`${props.state.realizedProfitSummary.realizedEntryCount} executed entries`}
-          value={formatSignedCurrency(plan.profitAfterReserve + plan.reserveSetAside)}
-          positive
+          sub={hasMissingBasis ? 'basis missing on accepted sells' : realizedLabel}
+          value={formatSignedCurrency(buyingPower.realizedGainLoss)}
+          positive={buyingPower.realizedGainLoss >= 0}
         />
         <CashCell
           label="reserve"
           percent={reservePercent}
-          sub={`${reservePercent}% set-aside`}
+          sub={
+            hasMissingBasis && plan.reserveSetAside === 0
+              ? 'waiting on basis'
+              : `${reservePercent}% set-aside`
+          }
           value={formatCurrency(plan.reserveSetAside)}
         />
         <CashCell
           label="pay myself"
           percent={payPercent}
-          sub={`${payPercent}% draw`}
+          sub={
+            hasMissingBasis && plan.payYourselfAmount === 0
+              ? 'waiting on realized P/L'
+              : `${payPercent}% draw`
+          }
           value={formatCurrency(plan.payYourselfAmount)}
         />
         <CashCell
@@ -114,6 +129,22 @@ export function CashPlan(props: { state: CommandCenterState }) {
         </Panel>
         <Panel>
           <PanelHead kicker="notes" title="Rationale" />
+          <KV label="source" value={plan.sourceLabel} />
+          <KV label="sell proceeds" value={formatCurrency(buyingPower.filledSellProceeds)} />
+          <KV
+            label="recognized P/L"
+            tone={buyingPower.realizedGainLoss >= 0 ? 'pos' : 'neg'}
+            value={formatSignedCurrency(buyingPower.realizedGainLoss)}
+          />
+          <KV label="missing basis rows" value={buyingPower.missingInputCount} />
+          <div className="dash-rule" />
+          {hasMissingBasis ? (
+            <Hint variant="warn">
+              Accepted CSV sells without basis are counted as proceeds for
+              redeploy planning, but they do not create realized P/L, reserve,
+              or pay-myself estimates until basis is imported or entered.
+            </Hint>
+          ) : null}
           <Hint>{PROFIT_CASH_PLAN_DISCLOSURE}</Hint>
           <ul className="small muted" style={{ paddingLeft: 18 }}>
             <li>Reserve grows the runway target before redeploy.</li>

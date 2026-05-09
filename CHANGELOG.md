@@ -10,6 +10,9 @@
   tracking, and live quote display for research cards.
 - Made Robinhood CSV row review visible with accepted/rejected counts and
   clearer apply behavior.
+- Clarified Robinhood account activity CSV behavior so missing cost basis is
+  shown as missing, not as confirmed $0 realized P/L, reserve, or pay-myself.
+- Regenerated README screenshots from the current redesigned app.
 - Added offline Geist font loading, dark/light theme tokens, reusable primitive
   components, keyboard navigation, and a command palette.
 - Preserved local-first market, research, journal, cash-plan, and Robinhood CSV
