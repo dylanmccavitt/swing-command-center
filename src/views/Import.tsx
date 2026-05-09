@@ -26,9 +26,12 @@ import {
 export function Import(props: { state: CommandCenterState }) {
   const [reviewRow, setReviewRow] = useState<RobinhoodNormalizedRow | null>(null)
   const fixtureRows = useMemo(() => buildFixtureRows(), [])
-  const rows =
-    props.state.robinhoodRows.length > 0 ? props.state.robinhoodRows : fixtureRows
-  const isFixture = props.state.robinhoodRows.length === 0
+  const hasImportedRows = props.state.robinhoodRows.length > 0
+  const isFixture =
+    !hasImportedRows &&
+    props.state.robinhoodImports.length === 0 &&
+    !props.state.robinhoodImportMessage
+  const rows = hasImportedRows ? props.state.robinhoodRows : isFixture ? fixtureRows : []
   const acceptedRows = rows.filter((row) => row.reviewState === 'accepted')
   const csvRealized = rows.reduce((total, row) => total + (row.realizedGainLoss ?? 0), 0)
   const journalRealized = isFixture
@@ -156,11 +159,17 @@ export function Import(props: { state: CommandCenterState }) {
             <div className="hint">{props.state.robinhoodImportMessage}</div>
           ) : null}
           <div className="actions" style={{ marginTop: 10 }}>
-            <button className="btn" type="button" onClick={() => setReviewRow(rows[0] ?? null)}>
+            <button
+              className="btn"
+              disabled={rows.length === 0}
+              type="button"
+              onClick={() => setReviewRow(rows[0] ?? null)}
+            >
               Map remaining
             </button>
             <button
               className="btn primary"
+              disabled={rows.length === 0}
               type="button"
               onClick={() => {
                 buildSellFillsFromAcceptedRobinhoodRows(acceptedRows)
