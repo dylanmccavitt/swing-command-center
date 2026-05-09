@@ -9,6 +9,7 @@ export const AI_STACK_LAYERS = [
   { id: 'power_cooling', label: 'Power/cooling' },
   { id: 'data_centers', label: 'Data centers' },
   { id: 'energy', label: 'Energy' },
+  { id: 'general_watchlist', label: 'General watchlist' },
 ] as const
 
 export type AiStackLayerId = (typeof AI_STACK_LAYERS)[number]['id']
@@ -242,6 +243,19 @@ export const seedWatchlist: SeedWatchlistItem[] = [
       catalyst: 'Power contract demand and nuclear generation scarcity.',
       invalidation: 'Power demand expectations reset or policy risk rises.',
       riskNotes: 'Regulatory, commodity, and contract-duration risk.',
+    }),
+    tradeSetup: { ...EMPTY_TRADE_SETUP },
+  },
+  {
+    symbol: 'HIMS',
+    name: 'Hims & Hers Health',
+    stackLayer: 'general_watchlist',
+    seedType: 'placeholder',
+    research: buildResearchSeed({
+      thesis: 'General watchlist card for consumer-health growth exposure.',
+      catalyst: 'Member growth, margin durability, category expansion, and regulatory updates.',
+      invalidation: 'Growth quality, customer acquisition costs, or regulatory risk breaks the setup.',
+      riskNotes: 'High-growth healthcare platform risk, policy exposure, and valuation sensitivity.',
     }),
     tradeSetup: { ...EMPTY_TRADE_SETUP },
   },

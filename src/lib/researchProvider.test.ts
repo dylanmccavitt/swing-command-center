@@ -72,6 +72,27 @@ describe('research provider boundary', () => {
       warning: 'No transparent sources are configured for this symbol.',
     })
   })
+
+  it('builds generic source context for uncataloged research cards', async () => {
+    const provider = createCuratedResearchProvider({
+      cards: seedWatchlist,
+      now: () => new Date('2026-05-07T14:00:00.000Z'),
+    })
+
+    const [bundle] = await provider.loadResearchContext(['HIMS'])
+
+    expect(bundle).toMatchObject({
+      symbol: 'HIMS',
+      name: 'Hims & Hers Health',
+      layerLabel: 'General watchlist',
+      status: 'ready',
+    })
+    expect(bundle.sources.map((source) => source.type)).toEqual([
+      'recent_news',
+      'sec_filings',
+      'sector_context',
+    ])
+  })
 })
 
 describe('research draft normalization', () => {

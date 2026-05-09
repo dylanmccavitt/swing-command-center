@@ -55,6 +55,39 @@ describe('Robinhood CSV import and reconciliation', () => {
     })
   })
 
+  it('keeps quoted CUSIP line breaks inside Robinhood account rows', () => {
+    const csv = [
+      '"Activity Date","Process Date","Settle Date","Instrument","Description","Trans Code","Quantity","Price","Amount"',
+      '"05/08/2026","05/08/2026","05/11/2026","TEST","Test Company',
+      'CUSIP: 000000001","Buy","25","$27.34","($683.50)"',
+      '"05/08/2026","05/08/2026","05/11/2026","CHIP","Chip Company',
+      'CUSIP: 000000002","Sell","3","$216.00","$647.98"',
+    ].join('\n')
+
+    const result = parseRobinhoodCsvFile({
+      fileName: 'account-activity.csv',
+      importedAt: IMPORTED_AT,
+      text: csv,
+      reportKind: 'account_activity',
+    })
+
+    expect(result.errors).toEqual([])
+    expect(result.batch).toMatchObject({ rowCount: 2 })
+    expect(result.rows).toHaveLength(2)
+    expect(result.rows[0]).toMatchObject({
+      description: 'Test Company\nCUSIP: 000000001',
+      kind: 'buy',
+      quantity: 25,
+      symbol: 'TEST',
+    })
+    expect(result.rows[1]).toMatchObject({
+      description: 'Chip Company\nCUSIP: 000000002',
+      kind: 'sell',
+      proceeds: 647.98,
+      symbol: 'CHIP',
+    })
+  })
+
   it('parses realized gain/loss CSV rows with basis, P/L, term, and wash-sale fields', () => {
     const csv = [
       'Symbol,Date Acquired,Date Sold,Quantity,Proceeds,Cost Basis,Realized Gain/Loss,Term,Wash Sale Loss Disallowed',

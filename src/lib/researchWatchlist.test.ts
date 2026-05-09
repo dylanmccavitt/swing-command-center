@@ -13,7 +13,7 @@ describe('AI stack research watchlist', () => {
     const seededLayers = new Set(seedWatchlist.map((item) => item.stackLayer))
 
     expect(symbols).toEqual(
-      expect.arrayContaining(['AAPL', 'GOOG', 'NVDA', 'IREN']),
+      expect.arrayContaining(['AAPL', 'GOOG', 'NVDA', 'IREN', 'HIMS']),
     )
     expect(Array.from(seededLayers).sort()).toEqual(
       AI_STACK_LAYERS.map((layer) => layer.id).sort(),
@@ -34,6 +34,7 @@ describe('AI stack research watchlist', () => {
       'Power/cooling',
       'Data centers',
       'Energy',
+      'General watchlist',
     ])
     expect(groups.every((group) => group.items.length > 0)).toBe(true)
   })

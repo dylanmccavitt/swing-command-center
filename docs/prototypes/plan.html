@@ -1,0 +1,1304 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Swing Command Center — Redesign Implementation Plan</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0e0e0e;
+        --bg-1: #141414;
+        --bg-2: #1a1a1a;
+        --bg-3: #202020;
+        --line: #262626;
+        --line-2: #2f2f2f;
+        --ink: #ededed;
+        --ink-1: #c9c9c9;
+        --ink-2: #888;
+        --ink-3: #5a5a5a;
+        --accent: #d97757;
+        --accent-soft: rgba(217, 119, 87, 0.12);
+        --green: #5fb27e;
+        --green-soft: rgba(95, 178, 126, 0.1);
+        --red: #d96c6c;
+        --amber: #d8a44a;
+        --amber-soft: rgba(216, 164, 74, 0.12);
+        --blue: #6b8aa8;
+        --blue-soft: rgba(107, 138, 168, 0.12);
+        --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        --sans: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
+        --radius: 6px;
+      }
+      [data-theme="light"] {
+        --bg: #fafaf9;
+        --bg-1: #ffffff;
+        --bg-2: #f5f4f2;
+        --bg-3: #ecebe8;
+        --line: #e2e0db;
+        --line-2: #d4d2cc;
+        --ink: #1a1a1a;
+        --ink-1: #3d3d3d;
+        --ink-2: #6a6a6a;
+        --ink-3: #9a9a9a;
+        --accent: #c25e3e;
+        --accent-soft: rgba(194, 94, 62, 0.1);
+        --green: #2f8a55;
+        --green-soft: rgba(47, 138, 85, 0.08);
+        --red: #b54b4b;
+        --amber: #b58028;
+        --amber-soft: rgba(181, 128, 40, 0.1);
+        --blue: #506e8c;
+        --blue-soft: rgba(80, 110, 140, 0.1);
+      }
+
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--sans);
+        font-size: 13px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+      a { color: var(--accent); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      ::selection { background: var(--accent-soft); color: var(--ink); }
+
+      /* ───── titlebar ───── */
+      .titlebar {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 14px;
+        height: 40px;
+        border-bottom: 1px solid var(--line);
+        background: var(--bg-1);
+      }
+      .traffic { display: flex; gap: 8px; padding-right: 12px; }
+      .traffic .dot { width: 11px; height: 11px; border-radius: 50%; }
+      .traffic .dot:nth-child(1) { background: #ff5f57; }
+      .traffic .dot:nth-child(2) { background: #ffbd2e; }
+      .traffic .dot:nth-child(3) { background: #28c840; }
+      .titlebar .center {
+        flex: 1;
+        text-align: center;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--ink-2);
+        letter-spacing: 0.04em;
+      }
+      .titlebar .right {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--ink-2);
+      }
+      .titlebar .right .live::before {
+        content: "●";
+        color: var(--accent);
+        margin-right: 4px;
+        font-size: 9px;
+      }
+
+      /* ───── doc ───── */
+      .doc {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 30px 36px 90px;
+      }
+
+      .page-head {
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--line);
+        margin-bottom: 28px;
+      }
+      .kicker {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 6px;
+      }
+      .page-title {
+        font-family: var(--sans);
+        font-size: 26px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        margin: 0 0 8px;
+      }
+      .breadcrumbs {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--ink-2);
+      }
+      .breadcrumbs .sep { color: var(--ink-3); margin: 0 6px; }
+
+      /* ───── totals ───── */
+      .totals {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--bg-1);
+        overflow: hidden;
+        margin-bottom: 24px;
+      }
+      .totals .cell {
+        padding: 14px 18px;
+        border-right: 1px solid var(--line);
+      }
+      .totals .cell:last-child { border-right: none; }
+      .totals .label {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--ink-2);
+        margin-bottom: 6px;
+      }
+      .totals .value {
+        font-family: var(--mono);
+        font-size: 20px;
+        font-weight: 500;
+      }
+      .totals .sub {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--ink-3);
+        margin-top: 4px;
+      }
+
+      /* ───── section divider ───── */
+      .section-divider {
+        margin: 36px 0 14px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .section-divider .label {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ink-2);
+      }
+      .section-divider .rule {
+        flex: 1;
+        height: 1px;
+        background-image: repeating-linear-gradient(
+          to right,
+          var(--line-2) 0 6px,
+          transparent 6px 12px
+        );
+      }
+      .section-divider .meta {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--ink-3);
+      }
+
+      /* ───── prose ───── */
+      .prose p { margin: 0 0 12px; color: var(--ink-1); font-size: 13px; }
+      .prose .lead { color: var(--ink); font-size: 13.5px; }
+      .prose code {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        background: var(--bg-2);
+        border: 1px solid var(--line);
+        padding: 1px 5px;
+        border-radius: 3px;
+      }
+      .hint {
+        font-size: 12.5px;
+        color: var(--ink-1);
+        background: var(--bg-2);
+        border-left: 2px solid var(--accent);
+        padding: 11px 14px;
+        border-radius: 0 4px 4px 0;
+        margin: 14px 0;
+      }
+      .hint b { color: var(--ink); font-weight: 500; }
+      .hint code {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        padding: 1px 4px;
+        background: var(--bg-3);
+        border-radius: 3px;
+      }
+
+      /* ───── TOC ───── */
+      .toc {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--bg-1);
+        padding: 14px 18px;
+        margin-bottom: 28px;
+      }
+      .toc-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 4px 24px;
+      }
+      .toc-list li {
+        display: grid;
+        grid-template-columns: 36px 1fr auto;
+        gap: 8px;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        padding: 4px 0;
+        border-bottom: 1px dashed var(--line);
+      }
+      .toc-list li:last-child,
+      .toc-list li:nth-last-child(2) { border-bottom: none; }
+      .toc-list .num { color: var(--accent); }
+      .toc-list .name { color: var(--ink-1); }
+      .toc-list .name a { color: var(--ink-1); }
+      .toc-list .name a:hover { color: var(--accent); text-decoration: none; }
+      .toc-list .days { color: var(--ink-3); }
+
+      /* ───── timeline ───── */
+      .timeline {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--bg-1);
+        padding: 18px;
+        margin-bottom: 24px;
+      }
+      .timeline .scale {
+        display: grid;
+        grid-template-columns: 130px repeat(14, 1fr);
+        font-family: var(--mono);
+        font-size: 9.5px;
+        color: var(--ink-3);
+        margin-bottom: 8px;
+      }
+      .timeline .scale span {
+        text-align: center;
+        border-left: 1px dashed var(--line);
+        padding: 2px 0;
+      }
+      .timeline .scale .head { border-left: none; text-align: left; }
+      .timeline .bar-row {
+        display: grid;
+        grid-template-columns: 130px 1fr;
+        gap: 10px;
+        align-items: center;
+        padding: 5px 0;
+      }
+      .timeline .bar-name {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--ink-1);
+      }
+      .timeline .track {
+        position: relative;
+        height: 14px;
+        background: repeating-linear-gradient(
+          to right,
+          var(--bg-2) 0 calc(100%/14),
+          var(--bg) calc(100%/14) calc(100%*2/14)
+        );
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .timeline .bar {
+        position: absolute;
+        top: 2px;
+        bottom: 2px;
+        background: var(--accent);
+        border-radius: 2px;
+        opacity: 0.9;
+      }
+      .timeline .bar.foundation { background: var(--blue); }
+      .timeline .bar.polish { background: var(--green); }
+      .timeline .bar-label {
+        font-family: var(--mono);
+        font-size: 10px;
+        color: #fff;
+        position: absolute;
+        left: 6px;
+        top: 0;
+        line-height: 14px;
+        opacity: 0.95;
+        white-space: nowrap;
+      }
+
+      /* ───── phase ───── */
+      .phase {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--bg-1);
+        overflow: hidden;
+        margin-bottom: 14px;
+        scroll-margin-top: 48px;
+      }
+      .phase-head {
+        display: grid;
+        grid-template-columns: 64px 1fr auto;
+        align-items: center;
+        gap: 14px;
+        padding: 14px 18px;
+        border-bottom: 1px dashed var(--line);
+      }
+      .phase .num {
+        font-family: var(--mono);
+        font-size: 13px;
+        color: var(--accent);
+        letter-spacing: 0.06em;
+      }
+      .phase .pname {
+        font-size: 14.5px;
+        font-weight: 600;
+      }
+      .phase .pgoal {
+        font-size: 12.5px;
+        color: var(--ink-2);
+        margin-top: 3px;
+      }
+      .phase .pmeta {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .pill {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--ink-2);
+        padding: 3px 8px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+      }
+      .pill.days { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+      .pill.risk-low { color: var(--green); border-color: var(--green); background: var(--green-soft); }
+      .pill.risk-med { color: var(--amber); border-color: var(--amber); background: var(--amber-soft); }
+      .pill.risk-high { color: var(--red); border-color: var(--red); background: rgba(217,108,108,0.1); }
+
+      .phase-grid {
+        display: grid;
+        grid-template-columns: 1.4fr 1fr;
+      }
+      .phase-grid > div { padding: 16px 18px; }
+      .phase-grid > div:first-child { border-right: 1px dashed var(--line); }
+
+      .pblock-label {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        color: var(--ink-3);
+        text-transform: uppercase;
+        margin: 14px 0 8px;
+      }
+      .pblock-label:first-child { margin-top: 0; }
+
+      /* ───── lists ───── */
+      .tasks { list-style: none; margin: 0; padding: 0; }
+      .tasks li {
+        padding: 6px 0 6px 16px;
+        border-bottom: 1px dashed var(--line);
+        font-size: 12.5px;
+        color: var(--ink-1);
+        position: relative;
+      }
+      .tasks li:last-child { border-bottom: none; }
+      .tasks li::before {
+        content: "—";
+        position: absolute;
+        left: 0;
+        color: var(--ink-3);
+        font-family: var(--mono);
+      }
+      .tasks li code {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        background: var(--bg-2);
+        border: 1px solid var(--line);
+        padding: 1px 5px;
+        border-radius: 3px;
+        color: var(--ink-1);
+      }
+
+      /* files */
+      .files { display: flex; flex-direction: column; gap: 5px; }
+      .file {
+        display: grid;
+        grid-template-columns: 56px 1fr;
+        gap: 10px;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        align-items: baseline;
+      }
+      .file .tag {
+        font-size: 10px;
+        text-align: center;
+        padding: 1px 6px;
+        border-radius: 3px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      .file .tag.add { background: var(--green-soft); color: var(--green); }
+      .file .tag.mod { background: var(--blue-soft); color: var(--blue); }
+      .file .tag.del { background: rgba(217,108,108,0.12); color: var(--red); }
+      .file .path { color: var(--ink-1); word-break: break-word; }
+
+      /* exit + risk */
+      .exit-list,
+      .risk-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .exit-list li,
+      .risk-list li {
+        font-size: 12.5px;
+        color: var(--ink-1);
+        padding: 5px 0 5px 16px;
+        position: relative;
+        border-bottom: 1px dashed var(--line);
+      }
+      .exit-list li:last-child,
+      .risk-list li:last-child { border-bottom: none; }
+      .exit-list li::before {
+        content: "✓";
+        position: absolute;
+        left: 0;
+        color: var(--green);
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+      .risk-list li::before {
+        content: "!";
+        position: absolute;
+        left: 0;
+        color: var(--amber);
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+      .exit-list code,
+      .risk-list code {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        background: var(--bg-2);
+        border: 1px solid var(--line);
+        padding: 1px 5px;
+        border-radius: 3px;
+      }
+
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 4px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+
+      kbd {
+        font-family: var(--mono);
+        font-size: 10px;
+        padding: 1px 5px;
+        border: 1px solid var(--line);
+        border-bottom-width: 2px;
+        border-radius: 3px;
+        background: var(--bg-2);
+        color: var(--ink-1);
+      }
+
+      .footer {
+        margin-top: 36px;
+        padding-top: 18px;
+        border-top: 1px dashed var(--line);
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--ink-3);
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+
+      @media (max-width: 920px) {
+        .totals { grid-template-columns: repeat(2, 1fr); }
+        .totals .cell:nth-child(2) { border-right: none; }
+        .toc-list { grid-template-columns: 1fr; }
+        .phase-grid { grid-template-columns: 1fr; }
+        .phase-grid > div:first-child { border-right: none; border-bottom: 1px dashed var(--line); }
+        .timeline .scale { grid-template-columns: 90px repeat(14, 1fr); }
+        .timeline .bar-row { grid-template-columns: 90px 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="titlebar">
+      <div class="traffic">
+        <span class="dot"></span>
+        <span class="dot"></span>
+        <span class="dot"></span>
+      </div>
+      <div class="center">swing-command-center — implementation plan · redesign v1</div>
+      <div class="right">
+        <span class="live">draft · ready for review</span>
+        <span>2026-05-08</span>
+      </div>
+    </header>
+
+    <main class="doc">
+
+      <!-- ───── header ───── -->
+      <div class="page-head">
+        <div class="kicker">— redesign implementation plan</div>
+        <h1 class="page-title">Swing Command Center · UI refactor</h1>
+        <div class="breadcrumbs">
+          plan<span class="sep">/</span>v1<span class="sep">/</span>overview
+        </div>
+      </div>
+
+      <!-- ───── totals ───── -->
+      <div class="totals">
+        <div class="cell">
+          <div class="label">phases</div>
+          <div class="value">11</div>
+          <div class="sub">P0 → P10</div>
+        </div>
+        <div class="cell">
+          <div class="label">est. effort</div>
+          <div class="value">~12 d</div>
+          <div class="sub">solo, 3–4 h focused / day</div>
+        </div>
+        <div class="cell">
+          <div class="label">files added</div>
+          <div class="value">~22</div>
+          <div class="sub">primitives · views · hooks · styles</div>
+        </div>
+        <div class="cell">
+          <div class="label">risk</div>
+          <div class="value" style="color:var(--amber)">Medium</div>
+          <div class="sub">5,042-LOC App.tsx decomp</div>
+        </div>
+      </div>
+
+      <!-- ───── overview prose ───── -->
+      <div class="prose">
+        <p class="lead">
+          The redesign is a <b>presentation-layer refactor</b>. All math
+          (cockpit, profitLock, profitCashPlan, scenarioPlanner, sellFills,
+          robinhoodCsv, tradeJournal, researchProvider, marketData) lives in
+          <code>src/lib/</code> with passing tests — none of that needs to
+          change.
+        </p>
+        <p>
+          The current <code>src/App.tsx</code> is 5,042 lines and
+          <code>src/App.css</code> is 1,883 lines. Both are mostly layout. The
+          plan extracts a Claude-Code-style shell, splits the monolith into
+          per-view files, replaces ad-hoc panels with a small set of
+          primitives, and migrates existing state hooks unchanged.
+        </p>
+      </div>
+
+      <div class="hint">
+        <b>Guiding rules.</b> 1) Don't touch <code>src/lib/*</code> or its
+        tests. 2) Each phase ends with green
+        <code>lint / typecheck / test / build</code>. 3) Keep PRs ≤ 500 changed
+        lines per the workflow standard — split phases across multiple PRs
+        when needed. 4) Old <code>App.css</code> stays in place until its
+        panels are visually replaced; delete in P10.
+      </div>
+
+      <!-- ───── TOC ───── -->
+      <div class="section-divider">
+        <span class="label">— contents</span>
+        <span class="rule"></span>
+        <span class="meta">11 phases · ~12 days</span>
+      </div>
+
+      <div class="toc">
+        <ul class="toc-list">
+          <li><span class="num">P0</span><span class="name"><a href="#phase-0">Foundation</a></span><span class="days">1 d</span></li>
+          <li><span class="num">P1</span><span class="name"><a href="#phase-1">App shell</a></span><span class="days">1 d</span></li>
+          <li><span class="num">P2</span><span class="name"><a href="#phase-2">Decompose App.tsx</a></span><span class="days">3 d</span></li>
+          <li><span class="num">P3</span><span class="name"><a href="#phase-3">Cockpit visuals</a></span><span class="days">2 d</span></li>
+          <li><span class="num">P4</span><span class="name"><a href="#phase-4">Research view</a></span><span class="days">2 d</span></li>
+          <li><span class="num">P5</span><span class="name"><a href="#phase-5">Planner</a></span><span class="days">1 d</span></li>
+          <li><span class="num">P6</span><span class="name"><a href="#phase-6">Journal</a></span><span class="days">1 d</span></li>
+          <li><span class="num">P7</span><span class="name"><a href="#phase-7">Cash plan</a></span><span class="days">0.5 d</span></li>
+          <li><span class="num">P8</span><span class="name"><a href="#phase-8">Import</a></span><span class="days">1 d</span></li>
+          <li><span class="num">P9</span><span class="name"><a href="#phase-9">Polish + a11y</a></span><span class="days">1 d</span></li>
+          <li><span class="num">P10</span><span class="name"><a href="#phase-10">Cleanup</a></span><span class="days">0.5 d</span></li>
+          <li><span class="num">·</span><span class="name"><a href="#cross-cutting">Cross-cutting</a></span><span class="days">always</span></li>
+        </ul>
+      </div>
+
+      <!-- ───── timeline ───── -->
+      <div class="section-divider">
+        <span class="label">— timeline · 14 working days</span>
+        <span class="rule"></span>
+        <span class="meta">phases sequence as shown</span>
+      </div>
+
+      <div class="timeline">
+        <div class="scale">
+          <span class="head">phase</span>
+          <span>d1</span><span>d2</span><span>d3</span><span>d4</span>
+          <span>d5</span><span>d6</span><span>d7</span><span>d8</span>
+          <span>d9</span><span>d10</span><span>d11</span><span>d12</span>
+          <span>d13</span><span>d14</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-name">P0 foundation</span>
+          <div class="track"><span class="bar foundation" style="left:0%;width:7.14%"><span class="bar-label">tokens · fonts</span></span></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-name">P1 app shell</span>
+          <div class="track"><span class="bar foundation" style="left:7.14%;width:7.14%"><span class="bar-label">titlebar · sidebar</span></span></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-name">P2 decompose</span>
+          <div class="track"><span class="bar" style="left:14.28%;width:21.42%"><span class="bar-label">views · primitives</span></span></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-name">P3 cockpit</span>
+          <div class="track"><span class="bar" style="left:35.71%;width:14.28%"><span class="bar-label">stats · scenarios · watchlist</span></span></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-name">P4 research</span>
+          <div class="track"><span class="bar" style="left:50%;width:14.28%"><span class="bar-label">layers · card · candidates</span></span></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-name">P5 planner</span>
+          <div class="track"><span class="bar" style="left:64.28%;width:7.14%"><span class="bar-label">inputs · preview</span></span></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-name">P6 journal</span>
+          <div class="track"><span class="bar" style="left:71.42%;width:7.14%"><span class="bar-label">ledger · tabs</span></span></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-name">P7 cash plan</span>
+          <div class="track"><span class="bar" style="left:78.57%;width:3.57%"><span class="bar-label">splits</span></span></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-name">P8 import</span>
+          <div class="track"><span class="bar" style="left:82.14%;width:7.14%"><span class="bar-label">csv · reconcile</span></span></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-name">P9 polish</span>
+          <div class="track"><span class="bar polish" style="left:89.28%;width:7.14%"><span class="bar-label">hotkeys · a11y</span></span></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-name">P10 cleanup</span>
+          <div class="track"><span class="bar polish" style="left:96.42%;width:3.57%"><span class="bar-label">delete</span></span></div>
+        </div>
+      </div>
+
+      <!-- ───── design tokens ───── -->
+      <div class="section-divider">
+        <span class="label">— design tokens (locked)</span>
+        <span class="rule"></span>
+        <span class="meta">match prototype 1:1</span>
+      </div>
+      <div class="prose">
+        <p>
+          Tokens come straight from
+          <code>docs/prototypes/redesign.html</code>. They go into
+          <code>src/styles/tokens.css</code> as CSS custom properties on
+          <code>:root</code> and <code>[data-theme="light"]</code>. No
+          CSS-in-JS, no Tailwind — match the Claude Code feel: single
+          stylesheet, monospace numbers, dashed dividers.
+        </p>
+      </div>
+
+      <!-- ───── phases ───── -->
+      <div class="section-divider">
+        <span class="label">— phases</span>
+        <span class="rule"></span>
+        <span class="meta">P0 → P10</span>
+      </div>
+
+      <!-- P0 -->
+      <article class="phase" id="phase-0">
+        <div class="phase-head">
+          <div class="num">P0</div>
+          <div>
+            <div class="pname">Foundation · tokens, fonts, theme</div>
+            <div class="pgoal">Lock the visual vocabulary before any UI moves.</div>
+          </div>
+          <div class="pmeta">
+            <span class="pill days">1 d</span>
+            <span class="pill risk-low">low</span>
+          </div>
+        </div>
+        <div class="phase-grid">
+          <div>
+            <div class="pblock-label">tasks</div>
+            <ul class="tasks">
+              <li>Create <code>src/styles/tokens.css</code> with the prototype's CSS variables for both themes.</li>
+              <li>Create <code>src/styles/global.css</code> for resets, scrollbar, <code>kbd</code>, selection, monospace numerals.</li>
+              <li>Add Geist + Geist Mono via <code>@fontsource-variable/geist</code> + <code>@fontsource-variable/geist-mono</code> (offline-friendly; the app is local-first).</li>
+              <li>Wire <code>data-theme</code> on <code>&lt;html&gt;</code>, persist via <code>localStorage</code> in <code>useTheme()</code>.</li>
+              <li>Import <code>tokens.css</code> + <code>global.css</code> at top of <code>main.tsx</code> before <code>App.css</code>.</li>
+              <li>Verify existing UI still renders identically (tokens are additive at this stage).</li>
+            </ul>
+
+            <div class="pblock-label">files</div>
+            <div class="files">
+              <div class="file"><span class="tag add">add</span><span class="path">src/styles/tokens.css</span></div>
+              <div class="file"><span class="tag add">add</span><span class="path">src/styles/global.css</span></div>
+              <div class="file"><span class="tag add">add</span><span class="path">src/hooks/useTheme.ts</span></div>
+              <div class="file"><span class="tag mod">mod</span><span class="path">src/main.tsx</span></div>
+              <div class="file"><span class="tag mod">mod</span><span class="path">package.json</span></div>
+            </div>
+          </div>
+
+          <div>
+            <div class="pblock-label">exit criteria</div>
+            <ul class="exit-list">
+              <li>Toggle theme via <code>document.documentElement.dataset.theme</code> in devtools — body bg flips.</li>
+              <li>Geist + Geist Mono load offline (no FOUT, no CDN at runtime).</li>
+              <li><code>npm run lint && npm run typecheck && npm test && npm run build</code> clean.</li>
+            </ul>
+
+            <div class="pblock-label">risks</div>
+            <ul class="risk-list">
+              <li>Existing <code>App.css</code> uses hard-coded colors that will look slightly off in light mode — acceptable until P3.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <!-- P1 -->
+      <article class="phase" id="phase-1">
+        <div class="phase-head">
+          <div class="num">P1</div>
+          <div>
+            <div class="pname">App shell · titlebar, sidebar, status bar</div>
+            <div class="pgoal">Wrap the existing UI in the new chrome without changing it.</div>
+          </div>
+          <div class="pmeta">
+            <span class="pill days">1 d</span>
+            <span class="pill risk-low">low</span>
+          </div>
+        </div>
+        <div class="phase-grid">
+          <div>
+            <div class="pblock-label">tasks</div>
+            <ul class="tasks">
+              <li>Add <code>src/shell/Titlebar.tsx</code> (traffic-light dots, centered breadcrumb, live clock, theme toggle).</li>
+              <li>Add <code>src/shell/Sidebar.tsx</code> with workspace nav (6 views) + holdings / watchlist groupings driven from props.</li>
+              <li>Add <code>src/shell/StatusBar.tsx</code> with hotkey hints + YTD realized totals.</li>
+              <li>Refactor <code>App.tsx</code> root into <code>&lt;Titlebar /&gt;</code> + <code>&lt;Sidebar /&gt;</code> + <code>&lt;Main /&gt;</code> + <code>&lt;StatusBar /&gt;</code> grid; drop the entire existing render into a single <code>&lt;Main&gt;</code> child for now.</li>
+              <li>Add <code>useViewSwitcher()</code> hook (view = "cockpit" by default; map ⌘1–6 → view).</li>
+              <li>Snapshot test the sidebar render.</li>
+            </ul>
+
+            <div class="pblock-label">files</div>
+            <div class="files">
+              <div class="file"><span class="tag add">add</span><span class="path">src/shell/Titlebar.tsx</span></div>
+              <div class="file"><span class="tag add">add</span><span class="path">src/shell/Sidebar.tsx</span></div>
+              <div class="file"><span class="tag add">add</span><span class="path">src/shell/StatusBar.tsx</span></div>
+              <div class="file"><span class="tag add">add</span><span class="path">src/hooks/useViewSwitcher.ts</span></div>
+              <div class="file"><span class="tag add">add</span><span class="path">src/hooks/useHotkeys.ts</span></div>
+              <div class="file"><span class="tag mod">mod</span><span class="path">src/App.tsx</span></div>
+            </div>
+          </div>
+          <div>
+            <div class="pblock-label">exit criteria</div>
+            <ul class="exit-list">
+              <li>App renders inside the new chrome with the existing cockpit content visually unchanged in dark mode.</li>
+              <li>⌘1 lands on Cockpit; the other 5 are placeholder routes.</li>
+              <li>Sidebar holdings / watchlist counts wired to live state.</li>
+            </ul>
+
+            <div class="pblock-label">risks</div>
+            <ul class="risk-list">
+              <li>Existing <code>.command-surface</code> wrapper may collide with the new grid — wrap, don't replace.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <!-- P2 -->
+      <article class="phase" id="phase-2">
+        <div class="phase-head">
+          <div class="num">P2</div>
+          <div>
+            <div class="pname">Decompose App.tsx into views + primitives</div>
+            <div class="pgoal">Get the 5,042-line file under 500 LOC by splitting render concerns.</div>
+          </div>
+          <div class="pmeta">
+            <span class="pill days">3 d</span>
+            <span class="pill risk-high">high</span>
+          </div>
+        </div>
+        <div class="phase-grid">
+          <div>
+            <div class="pblock-label">tasks · primitives first</div>
+            <ul class="tasks">
+              <li>Build primitives <i>before</i> moving sections — proves the visual vocabulary holds.</li>
+              <li><code>SectionDivider</code>, <code>Stat</code>, <code>Panel</code>, <code>PanelHead</code> with kicker/title/pill.</li>
+              <li><code>Tabs</code>, <code>Pill</code>, <code>Field</code>, <code>FieldRow</code>, <code>Checkbox</code>.</li>
+              <li><code>RowList</code>, <code>Card</code>, <code>Ledger</code>, <code>Sparkbar</code>, <code>AllocBar</code>, <code>ScoreBar</code>.</li>
+              <li>Add a <code>/styleguide</code> route showing every primitive in isolation.</li>
+            </ul>
+
+            <div class="pblock-label">tasks · move sections</div>
+            <ul class="tasks">
+              <li>Slice <code>App.tsx</code> 1386–4900 into <code>views/Cockpit.tsx</code>, <code>Research.tsx</code>, <code>Planner.tsx</code>, <code>Journal.tsx</code>, <code>CashPlan.tsx</code>, <code>Import.tsx</code>.</li>
+              <li>Lift shared state into <code>src/state/</code> hooks: <code>useHoldings</code>, <code>useWatchlist</code>, <code>useScenarios</code>, <code>useJournal</code>, <code>usePortfolioSettings</code>, <code>useResearch</code>, <code>useSellFills</code>, <code>useRobinhoodImport</code>.</li>
+              <li>Wire each view to its hook(s); keep <code>App.tsx</code> a thin shell + router.</li>
+              <li>No visual changes yet — old class names still applied. The diff should be near-zero on screen.</li>
+            </ul>
+
+            <div class="pblock-label">files (representative)</div>
+            <div class="files">
+              <div class="file"><span class="tag add">add</span><span class="path">src/components/primitives/{SectionDivider,Stat,Panel,Tabs,Pill,Field,Card,Ledger,Sparkbar,AllocBar,ScoreBar,RowList}.tsx</span></div>
+              <div class="file"><span class="tag add">add</span><span class="path">src/views/{Cockpit,Research,Planner,Journal,CashPlan,Import}.tsx</span></div>
+              <div class="file"><span class="tag add">add</span><span class="path">src/state/{useHoldings,useWatchlist,useScenarios,useJournal,usePortfolioSettings,useResearch,useSellFills,useRobinhoodImport}.ts</span></div>
+              <div class="file"><span class="tag mod">mod</span><span class="path">src/App.tsx (target ≤ 200 LOC)</span></div>
+            </div>
+          </div>
+          <div>
+            <div class="pblock-label">exit criteria</div>
+            <ul class="exit-list">
+              <li><code>App.tsx</code> ≤ 250 LOC; no view file ≥ 600 LOC.</li>
+              <li>All existing tests still green; add hook tests for state moved from <code>App.tsx</code>.</li>
+              <li>Visual parity with current production within ±2 px.</li>
+            </ul>
+
+            <div class="pblock-label">risks</div>
+            <ul class="risk-list">
+              <li>State coupling — hooks may need to share derived selectors via <code>useMemo</code>; keep them colocated, no Redux.</li>
+              <li>Big PR risk. Split into 3 PRs: (a) primitives, (b) state hooks, (c) view files.</li>
+              <li>Any lib-level imports that snuck into <code>App.tsx</code> must be re-resolved cleanly per view file.</li>
+            </ul>
+
+            <div class="hint">
+              <b>Refactor heuristic.</b> If a fragment has only props and JSX, it goes in <code>views/</code>. If it has logic the math libs don't already cover, it goes in <code>state/</code> or stays inline. Don't grow <code>src/lib/</code> from this phase.
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- P3 -->
+      <article class="phase" id="phase-3">
+        <div class="phase-head">
+          <div class="num">P3</div>
+          <div>
+            <div class="pname">Cockpit visuals · stats / scenarios / allocation / watchlist / tickets</div>
+            <div class="pgoal">First view to swap to the new design.</div>
+          </div>
+          <div class="pmeta">
+            <span class="pill days">2 d</span>
+            <span class="pill risk-med">med</span>
+          </div>
+        </div>
+        <div class="phase-grid">
+          <div>
+            <div class="pblock-label">tasks</div>
+            <ul class="tasks">
+              <li>Replace KPI tiles with <code>&lt;Stat /&gt;</code> 4-up grid using monospace numerals.</li>
+              <li>Profit-lock scenarios → <code>&lt;RowList /&gt;</code> with index, ticker / desc, raise amount, lock pill.</li>
+              <li>Allocation panel → <code>&lt;AllocBar /&gt;</code> + legend driven by <code>buildAllocationRows()</code>; preserve <code>getSymbolColor()</code>.</li>
+              <li>Watchlist → <code>&lt;RowList /&gt;</code> with <code>&lt;Sparkbar /&gt;</code> per row; sparkbar bins driven from a small rolling quote buffer in state.</li>
+              <li>Manual tickets → <code>&lt;Card /&gt;</code> grid with <code>card-status</code> pills and the existing Plan / Executed / Mistake / Result actions.</li>
+              <li>Concentration warning → <code>&lt;Hint variant="warn" /&gt;</code>.</li>
+            </ul>
+
+            <div class="pblock-label">files</div>
+            <div class="files">
+              <div class="file"><span class="tag mod">mod</span><span class="path">src/views/Cockpit.tsx</span></div>
+              <div class="file"><span class="tag mod">mod</span><span class="path">src/components/primitives/Sparkbar.tsx</span></div>
+              <div class="file"><span class="tag del">del</span><span class="path">App.css blocks: .cockpit-panel, .stack-map-panel, .quote-panel</span></div>
+            </div>
+          </div>
+          <div>
+            <div class="pblock-label">exit criteria</div>
+            <ul class="exit-list">
+              <li>Cockpit pixel-matches <code>redesign.html</code> at 1280×800 dark mode within ±4 px.</li>
+              <li>Live quote refresh still works; <code>describeQuoteFreshness</code> appears in titlebar.</li>
+              <li>Hover, focus rings, click states implemented.</li>
+            </ul>
+
+            <div class="pblock-label">risks</div>
+            <ul class="risk-list">
+              <li>Sparkbars need a real series — quote provider currently exposes single snapshots. Render a flat bar until P9 if the buffer isn't ready.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <!-- P4 -->
+      <article class="phase" id="phase-4">
+        <div class="phase-head">
+          <div class="num">P4</div>
+          <div>
+            <div class="pname">Research view · layers, card, candidates</div>
+            <div class="pgoal">Promote AI-stack research into a first-class page.</div>
+          </div>
+          <div class="pmeta">
+            <span class="pill days">2 d</span>
+            <span class="pill risk-med">med</span>
+          </div>
+        </div>
+        <div class="phase-grid">
+          <div>
+            <div class="pblock-label">tasks</div>
+            <ul class="tasks">
+              <li>3-column grid: layer watchlist · research card · candidate filter.</li>
+              <li>Layer tags driven by <code>AI_STACK_LAYERS</code>; tag click selects active card.</li>
+              <li>Research card uses <code>&lt;ScoreBar /&gt;</code> + <code>&lt;Field /&gt;</code> for thesis / setup / invalidation / catalyst / source.</li>
+              <li>Tabs: Card / Layers / Codex queue / Imports — Codex queue lives in <code>codexResearchQueue.ts</code>, hook it up.</li>
+              <li>"Run research" / "Run layer" buttons call <code>researchProvider</code> exactly as today.</li>
+              <li>Hint banner reproduces existing disclosure copy verbatim.</li>
+            </ul>
+
+            <div class="pblock-label">files</div>
+            <div class="files">
+              <div class="file"><span class="tag mod">mod</span><span class="path">src/views/Research.tsx</span></div>
+              <div class="file"><span class="tag add">add</span><span class="path">src/components/research/{LayerList,ResearchCard,CandidateFilter,CodexQueue}.tsx</span></div>
+            </div>
+          </div>
+          <div>
+            <div class="pblock-label">exit criteria</div>
+            <ul class="exit-list">
+              <li>All existing research tests still pass.</li>
+              <li>Editing a thesis field persists locally and shows in the score bar progression.</li>
+              <li>Codex queue add / dequeue cycles intact.</li>
+            </ul>
+
+            <div class="pblock-label">risks</div>
+            <ul class="risk-list">
+              <li>Disclosure copy is regulatorily important — diff existing strings exactly when moving them.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <!-- P5 -->
+      <article class="phase" id="phase-5">
+        <div class="phase-head">
+          <div class="num">P5</div>
+          <div>
+            <div class="pname">Planner · inputs and live preview</div>
+            <div class="pgoal">Two-pane scenario builder feeding existing scenario math.</div>
+          </div>
+          <div class="pmeta">
+            <span class="pill days">1 d</span>
+            <span class="pill risk-low">low</span>
+          </div>
+        </div>
+        <div class="phase-grid">
+          <div>
+            <div class="pblock-label">tasks</div>
+            <ul class="tasks">
+              <li>Inputs panel: symbol · action · shares · avg cost · target weight · reserve · reason · invalidation.</li>
+              <li>Preview panel renders <code>buildTargetStopScenario()</code> output as <code>&lt;KV /&gt;</code> rows.</li>
+              <li>Show <code>SCENARIO_PLANNER_DISCLOSURE</code> as <code>&lt;Hint /&gt;</code>.</li>
+              <li>"Convert to ticket" wires through <code>buildProfitLockTickets()</code>.</li>
+            </ul>
+
+            <div class="pblock-label">files</div>
+            <div class="files">
+              <div class="file"><span class="tag mod">mod</span><span class="path">src/views/Planner.tsx</span></div>
+            </div>
+          </div>
+          <div>
+            <div class="pblock-label">exit criteria</div>
+            <ul class="exit-list">
+              <li>Live preview updates on every input change; numbers match the math library tests.</li>
+              <li>Disclosure visible above the fold.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <!-- P6 -->
+      <article class="phase" id="phase-6">
+        <div class="phase-head">
+          <div class="num">P6</div>
+          <div>
+            <div class="pname">Journal · ledger + tabs</div>
+            <div class="pgoal">Replace card stack with a dense ledger.</div>
+          </div>
+          <div class="pmeta">
+            <span class="pill days">1 d</span>
+            <span class="pill risk-low">low</span>
+          </div>
+        </div>
+        <div class="phase-grid">
+          <div>
+            <div class="pblock-label">tasks</div>
+            <ul class="tasks">
+              <li>Build <code>&lt;Ledger /&gt;</code> primitive (head + dashed rows + monospace numerics).</li>
+              <li>Tabs filter by <code>JournalEntry.kind</code>: all / plan / executed / mistake / result.</li>
+              <li>Tax export and CSV export buttons keep their handlers from <code>tradeJournal.ts</code>.</li>
+              <li>Status pills: <code>plan</code> / <code>exec</code> / <code>mistake</code> / <code>result</code> mapped to color tokens.</li>
+            </ul>
+
+            <div class="pblock-label">files</div>
+            <div class="files">
+              <div class="file"><span class="tag mod">mod</span><span class="path">src/views/Journal.tsx</span></div>
+              <div class="file"><span class="tag add">add</span><span class="path">src/components/primitives/Ledger.tsx</span></div>
+            </div>
+          </div>
+          <div>
+            <div class="pblock-label">exit criteria</div>
+            <ul class="exit-list">
+              <li>Tax export bytes-identical to current output (regression test).</li>
+              <li>Tab switch maintains scroll position.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <!-- P7 -->
+      <article class="phase" id="phase-7">
+        <div class="phase-head">
+          <div class="num">P7</div>
+          <div>
+            <div class="pname">Cash plan · 4-up splits + rules</div>
+            <div class="pgoal">Profit cash plan in the new chrome.</div>
+          </div>
+          <div class="pmeta">
+            <span class="pill days">0.5 d</span>
+            <span class="pill risk-low">low</span>
+          </div>
+        </div>
+        <div class="phase-grid">
+          <div>
+            <div class="pblock-label">tasks</div>
+            <ul class="tasks">
+              <li>4-up cash cells driven by <code>buildProfitCashPlan()</code>: realized · reserve · pay myself · redeploy.</li>
+              <li>Bottom split: distribution editor + rationale notes.</li>
+              <li>Show <code>PROFIT_CASH_PLAN_DISCLOSURE</code> as <code>&lt;Hint /&gt;</code>.</li>
+            </ul>
+
+            <div class="pblock-label">files</div>
+            <div class="files">
+              <div class="file"><span class="tag mod">mod</span><span class="path">src/views/CashPlan.tsx</span></div>
+            </div>
+          </div>
+          <div>
+            <div class="pblock-label">exit criteria</div>
+            <ul class="exit-list">
+              <li>Splits sum to 100% — UI validates before save.</li>
+              <li>Existing <code>profitCashPlan.test.ts</code> still passes.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <!-- P8 -->
+      <article class="phase" id="phase-8">
+        <div class="phase-head">
+          <div class="num">P8</div>
+          <div>
+            <div class="pname">Import · Robinhood CSV reconcile</div>
+            <div class="pgoal">Two-pane preview + reconcile.</div>
+          </div>
+          <div class="pmeta">
+            <span class="pill days">1 d</span>
+            <span class="pill risk-med">med</span>
+          </div>
+        </div>
+        <div class="phase-grid">
+          <div>
+            <div class="pblock-label">tasks</div>
+            <ul class="tasks">
+              <li>Reuse <code>&lt;Ledger /&gt;</code> for the CSV preview; status column shows match / review / unmapped.</li>
+              <li>Right-pane reconcile: matched / review / unmapped counts, csv vs journal realized totals, delta.</li>
+              <li>"Map remaining" opens a per-row review modal driven by <code>updateRobinhoodRowReviewState()</code>.</li>
+              <li>"Apply matches" calls <code>buildSellFillsFromAcceptedRobinhoodRows()</code>.</li>
+              <li>Render <code>ROBINHOOD_CSV_DISCLOSURE</code> as a hint.</li>
+            </ul>
+
+            <div class="pblock-label">files</div>
+            <div class="files">
+              <div class="file"><span class="tag mod">mod</span><span class="path">src/views/Import.tsx</span></div>
+              <div class="file"><span class="tag add">add</span><span class="path">src/components/import/RowReviewModal.tsx</span></div>
+            </div>
+          </div>
+          <div>
+            <div class="pblock-label">exit criteria</div>
+            <ul class="exit-list">
+              <li>Test fixture CSV reconciles to <b>$0.00 delta</b> against the seed journal.</li>
+              <li>No file content leaves the browser — verify via Network tab.</li>
+            </ul>
+            <div class="pblock-label">risks</div>
+            <ul class="risk-list">
+              <li>Modal a11y — focus trap + ESC required (handled in P9 if not done here).</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <!-- P9 -->
+      <article class="phase" id="phase-9">
+        <div class="phase-head">
+          <div class="num">P9</div>
+          <div>
+            <div class="pname">Polish · hotkeys, a11y, responsive, empty states</div>
+            <div class="pgoal">Make it feel like a desktop app, not a draft.</div>
+          </div>
+          <div class="pmeta">
+            <span class="pill days">1 d</span>
+            <span class="pill risk-low">low</span>
+          </div>
+        </div>
+        <div class="phase-grid">
+          <div>
+            <div class="pblock-label">tasks</div>
+            <ul class="tasks">
+              <li>⌘K command palette (fuzzy nav between views and holdings).</li>
+              <li>Vim-style chords: <kbd>g j</kbd> journal, <kbd>g r</kbd> research, <kbd>n</kbd> new ticket.</li>
+              <li>Status bar wires hotkey hints + YTD realized live.</li>
+              <li>A11y pass: every interactive has a name, focus ring uses <code>--accent</code>, modals trap focus, color contrast ≥ AA in both themes.</li>
+              <li>Responsive ≤ 1180 px collapses 3-up panels to 1-up.</li>
+              <li>Empty / loading / error states for every view.</li>
+            </ul>
+
+            <div class="pblock-label">files</div>
+            <div class="files">
+              <div class="file"><span class="tag add">add</span><span class="path">src/components/CommandPalette.tsx</span></div>
+              <div class="file"><span class="tag mod">mod</span><span class="path">src/hooks/useHotkeys.ts</span></div>
+              <div class="file"><span class="tag mod">mod</span><span class="path">src/styles/global.css</span></div>
+            </div>
+          </div>
+          <div>
+            <div class="pblock-label">exit criteria</div>
+            <ul class="exit-list">
+              <li>axe-core run on each view: zero serious violations.</li>
+              <li>Tab order matches reading order on all views.</li>
+              <li>Lighthouse a11y ≥ 95 in dark and light.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <!-- P10 -->
+      <article class="phase" id="phase-10">
+        <div class="phase-head">
+          <div class="num">P10</div>
+          <div>
+            <div class="pname">Cleanup · delete legacy</div>
+            <div class="pgoal">Retire the old layout sheet and update docs.</div>
+          </div>
+          <div class="pmeta">
+            <span class="pill days">0.5 d</span>
+            <span class="pill risk-low">low</span>
+          </div>
+        </div>
+        <div class="phase-grid">
+          <div>
+            <div class="pblock-label">tasks</div>
+            <ul class="tasks">
+              <li>Diff <code>App.css</code> against current usages; delete unreferenced selectors. Aim for ≤ 200 LOC residual.</li>
+              <li>Update <code>docs/screenshots/</code> with new dashboard / research / journal captures.</li>
+              <li>Update <code>README.md</code> "How I Use It" to reference the new view names.</li>
+              <li>Add a <code>CHANGELOG.md</code> entry describing the redesign.</li>
+              <li>Run the full check suite once more.</li>
+            </ul>
+
+            <div class="pblock-label">files</div>
+            <div class="files">
+              <div class="file"><span class="tag del">del</span><span class="path">src/App.css (most blocks)</span></div>
+              <div class="file"><span class="tag mod">mod</span><span class="path">README.md</span></div>
+              <div class="file"><span class="tag mod">mod</span><span class="path">docs/screenshots/*.png</span></div>
+              <div class="file"><span class="tag add">add</span><span class="path">CHANGELOG.md</span></div>
+            </div>
+          </div>
+          <div>
+            <div class="pblock-label">exit criteria</div>
+            <ul class="exit-list">
+              <li><code>npm run lint && npm run typecheck && npm test && npm run build</code> all green from a clean clone.</li>
+              <li>Bundle size delta ≤ +20 KB gzipped (Geist + Geist Mono are the main add).</li>
+              <li>Screenshots in README reflect production.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <!-- ───── cross-cutting ───── -->
+      <div class="section-divider" id="cross-cutting">
+        <span class="label">— cross-cutting concerns</span>
+        <span class="rule"></span>
+        <span class="meta">apply throughout</span>
+      </div>
+
+      <article class="phase">
+        <div class="phase-head">
+          <div class="num">·</div>
+          <div>
+            <div class="pname">Workflow + safety rails</div>
+            <div class="pgoal">Per the agent-workflow standard.</div>
+          </div>
+          <div class="pmeta">
+            <span class="pill">always-on</span>
+          </div>
+        </div>
+        <div class="phase-grid">
+          <div>
+            <div class="pblock-label">rules</div>
+            <ul class="exit-list">
+              <li>One issue → one worktree → one branch → one PR.</li>
+              <li>Keep PRs ≤ 500 changed lines (P2 splits into 3 PRs by design).</li>
+              <li>Fresh <code>main</code> + green CI before merge.</li>
+              <li>Risk-tiered review: P2 / P8 require a self-review pass before merge.</li>
+              <li>Reset session between unrelated phases.</li>
+            </ul>
+            <div class="pblock-label">checks per phase</div>
+            <ul class="exit-list">
+              <li><code>npm run lint</code></li>
+              <li><code>npm run typecheck</code></li>
+              <li><code>npm test</code></li>
+              <li><code>npm run build</code></li>
+            </ul>
+          </div>
+          <div>
+            <div class="pblock-label">non-goals</div>
+            <ul class="risk-list">
+              <li>No new business logic in <code>src/lib/</code>.</li>
+              <li>No router migration (single-page <code>useState</code> view switch is enough).</li>
+              <li>No Tailwind, no CSS-in-JS, no design system import.</li>
+              <li>No broker integrations, no live order placement, no remote sync.</li>
+            </ul>
+            <div class="pblock-label">decision log</div>
+            <ul class="exit-list">
+              <li><b>Theme</b>: CSS variables on <code>:root</code> + <code>data-theme</code>.</li>
+              <li><b>Fonts</b>: <code>@fontsource-variable</code> for offline.</li>
+              <li><b>State</b>: per-domain hooks in <code>src/state/</code>; no Zustand.</li>
+              <li><b>Hotkeys</b>: small <code>useHotkeys</code> + chord buffer, no <code>react-hotkeys</code> dep.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <div class="hint" style="margin-top:24px">
+        <b>Open this side-by-side with the prototype.</b> Cross-reference
+        <code>docs/prototypes/redesign.html</code> as the visual contract for
+        every phase from P3 onward. Pixel diffs against that file are the
+        cheapest acceptance test you have.
+      </div>
+
+      <div class="footer">
+        <span>plan v1</span>
+        <span>·</span>
+        <span>11 phases</span>
+        <span>·</span>
+        <span>~12 days</span>
+        <span>·</span>
+        <span>medium risk</span>
+        <span>·</span>
+        <span>presentation-only refactor</span>
+      </div>
+
+    </main>
+  </body>
+</html>

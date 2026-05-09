@@ -174,10 +174,9 @@ export function parseRobinhoodCsvFile(input: {
   importedAt: string
   reportKind?: RobinhoodCsvReportKind
 }): RobinhoodCsvImportResult {
-  const parsedLines = input.text
-    .split(/\r?\n/)
-    .map(parseCsvLine)
-    .filter((cells) => cells.some((cell) => cell.trim()))
+  const parsedLines = parseCsvRecords(input.text).filter((cells) =>
+    cells.some((cell) => cell.trim()),
+  )
   const headerIndex = findHeaderIndex(parsedLines)
 
   if (headerIndex === -1) {
@@ -766,16 +765,32 @@ function buildBatchId(
   return `${reportKind}-${slug}-${timestamp}`
 }
 
-function parseCsvLine(line: string): string[] {
-  const cells: string[] = []
+function parseCsvRecords(text: string): string[][] {
+  const records: string[][] = []
+  let cells: string[] = []
   let cell = ''
   let inQuotes = false
 
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index]
-    const nextChar = line[index + 1]
+  function pushCell() {
+    cells.push(cell.trim())
+    cell = ''
+  }
 
-    if (char === '"' && nextChar === '"') {
+  function pushRecord() {
+    pushCell()
+
+    if (cells.some((value) => value.trim())) {
+      records.push(cells)
+    }
+
+    cells = []
+  }
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+    const nextChar = text[index + 1]
+
+    if (char === '"' && nextChar === '"' && inQuotes) {
       cell += '"'
       index += 1
       continue
@@ -792,12 +807,34 @@ function parseCsvLine(line: string): string[] {
       continue
     }
 
+    if ((char === '\n' || char === '\r') && !inQuotes) {
+      pushRecord()
+
+      if (char === '\r' && nextChar === '\n') {
+        index += 1
+      }
+
+      continue
+    }
+
+    if ((char === '\n' || char === '\r') && inQuotes) {
+      cell += '\n'
+
+      if (char === '\r' && nextChar === '\n') {
+        index += 1
+      }
+
+      continue
+    }
+
     cell += char
   }
 
-  cells.push(cell.trim())
+  if (cell.length > 0 || cells.length > 0) {
+    pushRecord()
+  }
 
-  return cells
+  return records
 }
 
 function parseOptionalNumber(value: unknown): number | null {

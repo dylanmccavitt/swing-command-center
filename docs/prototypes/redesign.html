@@ -1,0 +1,2000 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Swing Command Center — Redesign Prototype</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0e0e0e;
+        --bg-1: #141414;
+        --bg-2: #1a1a1a;
+        --bg-3: #202020;
+        --line: #262626;
+        --line-2: #2f2f2f;
+        --ink: #ededed;
+        --ink-1: #c9c9c9;
+        --ink-2: #888;
+        --ink-3: #5a5a5a;
+        --accent: #d97757; /* claude orange */
+        --accent-soft: rgba(217, 119, 87, 0.12);
+        --green: #5fb27e;
+        --green-soft: rgba(95, 178, 126, 0.1);
+        --red: #d96c6c;
+        --red-soft: rgba(217, 108, 108, 0.1);
+        --amber: #d8a44a;
+        --amber-soft: rgba(216, 164, 74, 0.12);
+        --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        --sans: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
+        --radius: 6px;
+        --pad: 16px;
+      }
+
+      [data-theme="light"] {
+        --bg: #fafaf9;
+        --bg-1: #ffffff;
+        --bg-2: #f5f4f2;
+        --bg-3: #ecebe8;
+        --line: #e2e0db;
+        --line-2: #d4d2cc;
+        --ink: #1a1a1a;
+        --ink-1: #3d3d3d;
+        --ink-2: #6a6a6a;
+        --ink-3: #9a9a9a;
+        --accent: #c25e3e;
+        --accent-soft: rgba(194, 94, 62, 0.1);
+        --green: #2f8a55;
+        --green-soft: rgba(47, 138, 85, 0.08);
+        --red: #b54b4b;
+        --red-soft: rgba(181, 75, 75, 0.08);
+        --amber: #b58028;
+        --amber-soft: rgba(181, 128, 40, 0.1);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--sans);
+        font-size: 13px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      button {
+        font-family: inherit;
+        font-size: inherit;
+        color: inherit;
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0;
+      }
+
+      ::selection {
+        background: var(--accent-soft);
+        color: var(--ink);
+      }
+
+      /* ───── App shell ───── */
+      .app {
+        display: grid;
+        grid-template-columns: 232px 1fr;
+        grid-template-rows: 40px 1fr 28px;
+        height: 100vh;
+        background: var(--bg);
+      }
+
+      .titlebar {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 14px;
+        border-bottom: 1px solid var(--line);
+        background: var(--bg-1);
+        -webkit-app-region: drag;
+        user-select: none;
+      }
+      .titlebar .traffic {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding-right: 12px;
+      }
+      .traffic .dot {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+      }
+      .traffic .dot:nth-child(1) {
+        background: #ff5f57;
+      }
+      .traffic .dot:nth-child(2) {
+        background: #ffbd2e;
+      }
+      .traffic .dot:nth-child(3) {
+        background: #28c840;
+      }
+      .titlebar .center {
+        flex: 1;
+        text-align: center;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--ink-2);
+        letter-spacing: 0.04em;
+      }
+      .titlebar .right {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--ink-2);
+        -webkit-app-region: no-drag;
+      }
+      .titlebar .right .live::before {
+        content: "●";
+        color: var(--green);
+        margin-right: 4px;
+        font-size: 9px;
+      }
+      .theme-toggle {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--ink-2);
+        padding: 3px 8px;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+      }
+      .theme-toggle:hover {
+        color: var(--ink);
+        border-color: var(--line-2);
+      }
+
+      /* ───── Sidebar ───── */
+      .sidebar {
+        border-right: 1px solid var(--line);
+        background: var(--bg-1);
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+      }
+      .sidebar-section {
+        padding: 14px 14px 8px;
+      }
+      .sidebar-label {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        color: var(--ink-3);
+        text-transform: uppercase;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .sidebar-label::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: repeating-linear-gradient(
+          to right,
+          var(--line-2) 0 4px,
+          transparent 4px 8px
+        );
+      }
+      .nav {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .nav-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 10px;
+        margin: 1px 0;
+        border-radius: 4px;
+        font-size: 12.5px;
+        color: var(--ink-1);
+        cursor: pointer;
+        gap: 8px;
+      }
+      .nav-item:hover {
+        background: var(--bg-2);
+        color: var(--ink);
+      }
+      .nav-item.active {
+        background: var(--bg-2);
+        color: var(--ink);
+        box-shadow: inset 2px 0 0 var(--accent);
+      }
+      .nav-item .glyph {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--ink-3);
+        width: 14px;
+      }
+      .nav-item .count {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--ink-3);
+      }
+
+      .sidebar-footer {
+        margin-top: auto;
+        padding: 12px 14px;
+        border-top: 1px dashed var(--line);
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--ink-3);
+      }
+      .sidebar-footer .row {
+        display: flex;
+        justify-content: space-between;
+        padding: 2px 0;
+      }
+      .sidebar-footer .row b {
+        font-weight: 500;
+        color: var(--ink-1);
+      }
+
+      /* ───── Main ───── */
+      .main {
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .content {
+        flex: 1;
+        overflow-y: auto;
+      }
+
+      .view {
+        display: none;
+        padding: 22px 28px 60px;
+      }
+      .view.active {
+        display: block;
+      }
+
+      /* ───── Headings ───── */
+      .page-head {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 16px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid var(--line);
+        margin-bottom: 22px;
+      }
+      .kicker {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 6px;
+      }
+      .page-title {
+        font-family: var(--sans);
+        font-size: 22px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        margin: 0;
+      }
+      .breadcrumbs {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--ink-2);
+      }
+      .breadcrumbs .sep {
+        color: var(--ink-3);
+        margin: 0 6px;
+      }
+
+      .page-head .actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      .btn {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        padding: 6px 11px;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        color: var(--ink-1);
+        background: var(--bg-1);
+        letter-spacing: 0.02em;
+      }
+      .btn:hover {
+        border-color: var(--line-2);
+        color: var(--ink);
+      }
+      .btn.primary {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+      }
+      .btn.primary:hover {
+        opacity: 0.9;
+      }
+      .btn.ghost {
+        background: transparent;
+      }
+
+      /* ───── Section splits ───── */
+      .section-divider {
+        margin: 28px 0 16px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .section-divider .label {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ink-2);
+      }
+      .section-divider .rule {
+        flex: 1;
+        height: 1px;
+        background-image: repeating-linear-gradient(
+          to right,
+          var(--line-2) 0 6px,
+          transparent 6px 12px
+        );
+      }
+      .section-divider .meta {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--ink-3);
+      }
+
+      /* ───── Stats ───── */
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--bg-1);
+        overflow: hidden;
+      }
+      .stat {
+        padding: 16px 18px;
+        border-right: 1px solid var(--line);
+      }
+      .stat:last-child {
+        border-right: none;
+      }
+      .stat .label {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--ink-2);
+        margin-bottom: 8px;
+      }
+      .stat .value {
+        font-family: var(--mono);
+        font-size: 22px;
+        font-weight: 500;
+        letter-spacing: -0.01em;
+      }
+      .stat .value.pos {
+        color: var(--green);
+      }
+      .stat .value.neg {
+        color: var(--red);
+      }
+      .stat .value.warn {
+        color: var(--amber);
+      }
+      .stat .sub {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--ink-3);
+        margin-top: 6px;
+      }
+
+      /* ───── Grid layouts ───── */
+      .split-3 {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr 1fr;
+        gap: 0;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--bg-1);
+        overflow: hidden;
+      }
+      .split-3 > .panel {
+        border-right: 1px solid var(--line);
+      }
+      .split-3 > .panel:last-child {
+        border-right: none;
+      }
+
+      .split-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--bg-1);
+        overflow: hidden;
+      }
+      .split-2 > .panel {
+        border-right: 1px solid var(--line);
+      }
+      .split-2 > .panel:last-child {
+        border-right: none;
+      }
+
+      .panel {
+        padding: 16px 18px 18px;
+        min-height: 100px;
+      }
+      .panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 14px;
+      }
+      .panel-head .title {
+        font-size: 13.5px;
+        font-weight: 600;
+        color: var(--ink);
+      }
+      .panel-head .kicker {
+        margin-bottom: 4px;
+      }
+      .panel-head .pill {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--ink-2);
+        padding: 3px 8px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+      }
+
+      /* ───── Lists ───── */
+      .row-list {
+        display: flex;
+        flex-direction: column;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 32px 1fr auto;
+        gap: 12px;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px dashed var(--line);
+      }
+      .row:last-child {
+        border-bottom: none;
+      }
+      .row:hover {
+        background: var(--bg-2);
+        margin: 0 -10px;
+        padding: 10px 10px;
+        border-radius: 4px;
+        border-bottom-color: transparent;
+      }
+      .row .idx {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--ink-3);
+      }
+      .row .ticker {
+        font-family: var(--mono);
+        font-weight: 600;
+        font-size: 12.5px;
+      }
+      .row .desc {
+        font-size: 11.5px;
+        color: var(--ink-2);
+        margin-top: 1px;
+      }
+      .row .price {
+        font-family: var(--mono);
+        font-size: 12.5px;
+        text-align: right;
+      }
+      .row .delta {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--ink-3);
+        text-align: right;
+      }
+      .row .delta.pos {
+        color: var(--green);
+      }
+      .row .delta.neg {
+        color: var(--red);
+      }
+
+      /* ───── Allocation bar ───── */
+      .alloc-bar {
+        display: flex;
+        height: 10px;
+        border-radius: 3px;
+        overflow: hidden;
+        background: var(--bg-3);
+        margin-bottom: 14px;
+      }
+      .alloc-bar > span {
+        display: block;
+      }
+      .alloc-legend {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .alloc-legend .item {
+        display: grid;
+        grid-template-columns: 12px 1fr auto auto;
+        gap: 10px;
+        align-items: center;
+        font-size: 12px;
+      }
+      .alloc-legend .swatch {
+        width: 8px;
+        height: 8px;
+        border-radius: 2px;
+      }
+      .alloc-legend .pct {
+        font-family: var(--mono);
+        color: var(--ink-1);
+      }
+      .alloc-legend .val {
+        font-family: var(--mono);
+        color: var(--ink-2);
+      }
+
+      /* ───── Watchlist sparkbar ───── */
+      .spark {
+        display: flex;
+        gap: 1px;
+        align-items: flex-end;
+        height: 18px;
+        width: 80px;
+      }
+      .spark span {
+        flex: 1;
+        background: var(--ink-3);
+        opacity: 0.55;
+        border-radius: 1px;
+      }
+      .spark span.up {
+        background: var(--green);
+        opacity: 0.7;
+      }
+      .spark span.down {
+        background: var(--red);
+        opacity: 0.7;
+      }
+
+      /* ───── Tabs ───── */
+      .tabs {
+        display: flex;
+        gap: 0;
+        border-bottom: 1px solid var(--line);
+        margin-bottom: 18px;
+      }
+      .tab {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        letter-spacing: 0.04em;
+        padding: 9px 14px;
+        color: var(--ink-2);
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+      }
+      .tab:hover {
+        color: var(--ink);
+      }
+      .tab.active {
+        color: var(--ink);
+        border-bottom-color: var(--accent);
+      }
+      .tab .count {
+        margin-left: 6px;
+        color: var(--ink-3);
+      }
+
+      /* ───── Cards ───── */
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 12px;
+      }
+      .card {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--bg-1);
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .card:hover {
+        border-color: var(--line-2);
+      }
+      .card-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .card-status {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        padding: 3px 7px;
+        border-radius: 3px;
+      }
+      .card-status.ready {
+        color: var(--amber);
+        background: var(--amber-soft);
+      }
+      .card-status.exec {
+        color: var(--green);
+        background: var(--green-soft);
+      }
+      .card-status.draft {
+        color: var(--ink-2);
+        background: var(--bg-2);
+      }
+      .card h3 {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .kv {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 4px;
+        font-size: 11.5px;
+      }
+      .kv .k {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--ink-2);
+      }
+      .kv .v {
+        font-family: var(--mono);
+        text-align: right;
+      }
+      .kv .v.pos {
+        color: var(--green);
+      }
+      .card .reason {
+        font-size: 12px;
+        color: var(--ink-1);
+        padding-top: 6px;
+        border-top: 1px dashed var(--line);
+      }
+      .card .actions {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .card .actions .btn {
+        flex: 1;
+        text-align: center;
+        padding: 5px 8px;
+        font-size: 11px;
+      }
+
+      /* ───── Research ───── */
+      .research-grid {
+        display: grid;
+        grid-template-columns: 200px 1fr 240px;
+        gap: 0;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--bg-1);
+        overflow: hidden;
+      }
+      .research-grid > .panel {
+        border-right: 1px solid var(--line);
+      }
+      .research-grid > .panel:last-child {
+        border-right: none;
+      }
+      .layer {
+        margin-bottom: 14px;
+      }
+      .layer-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 4px 0;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .layer-head .ct {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--ink-3);
+      }
+      .layer-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-top: 6px;
+      }
+      .tag {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        padding: 2px 6px;
+        border: 1px solid var(--line);
+        border-radius: 3px;
+        color: var(--ink-1);
+        cursor: pointer;
+      }
+      .tag:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      .tag .score {
+        color: var(--ink-3);
+        margin-left: 4px;
+      }
+
+      .score-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .score-bar .track {
+        flex: 1;
+        height: 4px;
+        background: var(--bg-3);
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      .score-bar .fill {
+        height: 100%;
+        background: var(--accent);
+      }
+      .score-bar .num {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--ink-1);
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        margin-bottom: 12px;
+      }
+      .field label {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--ink-2);
+      }
+      .field input,
+      .field select,
+      .field textarea {
+        font-family: var(--mono);
+        font-size: 12px;
+        padding: 7px 10px;
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        color: var(--ink);
+        outline: none;
+      }
+      .field input:focus,
+      .field select:focus,
+      .field textarea:focus {
+        border-color: var(--accent);
+      }
+      .field textarea {
+        min-height: 64px;
+        resize: vertical;
+      }
+      .field-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .checkbox {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--ink-1);
+        cursor: pointer;
+      }
+      .checkbox input {
+        accent-color: var(--accent);
+      }
+
+      /* ───── Empty / hint blocks ───── */
+      .hint {
+        font-size: 11.5px;
+        color: var(--ink-2);
+        background: var(--bg-2);
+        border-left: 2px solid var(--accent);
+        padding: 10px 12px;
+        border-radius: 0 4px 4px 0;
+        margin: 10px 0;
+      }
+      .hint.warn {
+        border-color: var(--amber);
+      }
+
+      /* ───── Status bar ───── */
+      .statusbar {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        padding: 0 14px;
+        border-top: 1px solid var(--line);
+        background: var(--bg-1);
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--ink-3);
+      }
+      .statusbar .item {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .statusbar .item b {
+        color: var(--ink-1);
+        font-weight: 500;
+      }
+      .statusbar .right {
+        margin-left: auto;
+      }
+
+      /* ───── Journal table ───── */
+      .ledger {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--bg-1);
+        overflow: hidden;
+      }
+      .ledger-row {
+        display: grid;
+        grid-template-columns: 80px 1fr 90px 90px 100px 100px 80px;
+        gap: 12px;
+        padding: 11px 16px;
+        font-size: 12px;
+        align-items: center;
+        border-bottom: 1px dashed var(--line);
+      }
+      .ledger-row:last-child {
+        border-bottom: none;
+      }
+      .ledger-row.head {
+        background: var(--bg-2);
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--ink-2);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        border-bottom: 1px solid var(--line);
+      }
+      .ledger-row .num {
+        font-family: var(--mono);
+        text-align: right;
+      }
+      .ledger-row .num.pos {
+        color: var(--green);
+      }
+      .ledger-row .num.neg {
+        color: var(--red);
+      }
+
+      /* ───── Cash plan ───── */
+      .cash-plan {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        overflow: hidden;
+      }
+      .cash-cell {
+        padding: 16px;
+        background: var(--bg-1);
+        border-right: 1px solid var(--line);
+      }
+      .cash-cell:last-child {
+        border-right: none;
+      }
+      .cash-cell .label {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--ink-2);
+        margin-bottom: 8px;
+      }
+      .cash-cell .val {
+        font-family: var(--mono);
+        font-size: 18px;
+        font-weight: 500;
+      }
+      .cash-cell .alloc-bar {
+        margin-top: 10px;
+      }
+
+      /* ───── Scrollbar ───── */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--line-2);
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      /* ───── Misc ───── */
+      .dash-rule {
+        border-top: 1px dashed var(--line);
+        margin: 14px 0;
+      }
+      .mono {
+        font-family: var(--mono);
+      }
+      .muted {
+        color: var(--ink-2);
+      }
+      .small {
+        font-size: 11px;
+      }
+      kbd {
+        font-family: var(--mono);
+        font-size: 10px;
+        padding: 1px 5px;
+        border: 1px solid var(--line);
+        border-bottom-width: 2px;
+        border-radius: 3px;
+        background: var(--bg-2);
+        color: var(--ink-1);
+      }
+
+      /* responsiveness — narrow */
+      @media (max-width: 1180px) {
+        .stats { grid-template-columns: repeat(2, 1fr); }
+        .stat:nth-child(2) { border-right: none; }
+        .stat:nth-child(3) { border-top: 1px solid var(--line); }
+        .stat:nth-child(4) { border-top: 1px solid var(--line); border-right: none; }
+        .split-3 { grid-template-columns: 1fr; }
+        .split-3 > .panel { border-right: none; border-bottom: 1px solid var(--line); }
+        .research-grid { grid-template-columns: 1fr; }
+        .research-grid > .panel { border-right: none; border-bottom: 1px solid var(--line); }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <!-- ───── Title bar ───── -->
+      <header class="titlebar">
+        <div class="traffic" aria-hidden="true">
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+        </div>
+        <div class="center">swing-command-center — manual swing cockpit</div>
+        <div class="right">
+          <span class="live">live · iex</span>
+          <span>11:10:18 AM</span>
+          <button class="theme-toggle" id="themeToggle">[ theme ]</button>
+        </div>
+      </header>
+
+      <!-- ───── Sidebar ───── -->
+      <aside class="sidebar">
+        <div class="sidebar-section">
+          <div class="sidebar-label">workspace</div>
+          <ul class="nav">
+            <li class="nav-item active" data-view="cockpit">
+              <span><span class="glyph">▸</span> Cockpit</span>
+              <span class="count">⌘1</span>
+            </li>
+            <li class="nav-item" data-view="research">
+              <span><span class="glyph">▸</span> Research</span>
+              <span class="count">⌘2</span>
+            </li>
+            <li class="nav-item" data-view="planner">
+              <span><span class="glyph">▸</span> Planner</span>
+              <span class="count">⌘3</span>
+            </li>
+            <li class="nav-item" data-view="journal">
+              <span><span class="glyph">▸</span> Journal</span>
+              <span class="count">⌘4</span>
+            </li>
+            <li class="nav-item" data-view="cash">
+              <span><span class="glyph">▸</span> Cash plan</span>
+              <span class="count">⌘5</span>
+            </li>
+            <li class="nav-item" data-view="import">
+              <span><span class="glyph">▸</span> Import</span>
+              <span class="count">⌘6</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sidebar-label">holdings</div>
+          <ul class="nav">
+            <li class="nav-item">
+              <span><span class="glyph">·</span> AAPL</span>
+              <span class="count">+8.2%</span>
+            </li>
+            <li class="nav-item">
+              <span><span class="glyph">·</span> NVDA</span>
+              <span class="count">+24.1%</span>
+            </li>
+            <li class="nav-item">
+              <span><span class="glyph">·</span> GOOG</span>
+              <span class="count">·</span>
+            </li>
+            <li class="nav-item">
+              <span><span class="glyph">·</span> IREN</span>
+              <span class="count">·</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sidebar-label">watchlist</div>
+          <ul class="nav">
+            <li class="nav-item"><span><span class="glyph">·</span> AMD</span><span class="count">50</span></li>
+            <li class="nav-item"><span><span class="glyph">·</span> TSM</span><span class="count">50</span></li>
+            <li class="nav-item"><span><span class="glyph">·</span> ASML</span><span class="count">50</span></li>
+            <li class="nav-item"><span><span class="glyph">·</span> SNPS</span><span class="count">50</span></li>
+            <li class="nav-item"><span><span class="glyph">·</span> ANET</span><span class="count">50</span></li>
+            <li class="nav-item"><span><span class="glyph">·</span> VRT</span><span class="count">50</span></li>
+            <li class="nav-item"><span><span class="glyph">·</span> CEG</span><span class="count">50</span></li>
+            <li class="nav-item"><span><span class="glyph">·</span> MU</span><span class="count">50</span></li>
+          </ul>
+        </div>
+
+        <div class="sidebar-footer">
+          <div class="row"><span>feed</span><b>iex · alpaca</b></div>
+          <div class="row"><span>last sync</span><b>11:10:18</b></div>
+          <div class="row"><span>local-only</span><b>yes</b></div>
+        </div>
+      </aside>
+
+      <!-- ───── Main ───── -->
+      <main class="main">
+        <div class="content">
+
+          <!-- ─── COCKPIT ─── -->
+          <section class="view active" data-view="cockpit">
+            <div class="page-head">
+              <div>
+                <div class="kicker">— manual swing cockpit</div>
+                <h1 class="page-title">Swing Command Center</h1>
+                <div class="breadcrumbs">
+                  workspace<span class="sep">/</span>cockpit<span class="sep">/</span>overview
+                </div>
+              </div>
+              <div class="actions">
+                <button class="btn ghost">Export</button>
+                <button class="btn">Refresh quotes</button>
+                <button class="btn primary">+ New ticket</button>
+              </div>
+            </div>
+
+            <!-- Section: portfolio metrics -->
+            <div class="section-divider">
+              <span class="label">— portfolio</span>
+              <span class="rule"></span>
+              <span class="meta">2/4 modeled · 2 need lots</span>
+            </div>
+
+            <div class="stats">
+              <div class="stat">
+                <div class="label">portfolio value</div>
+                <div class="value">$3,052.48</div>
+                <div class="sub">2/4 holdings modeled</div>
+              </div>
+              <div class="stat">
+                <div class="label">unrealized gain</div>
+                <div class="value pos">+$832.48</div>
+                <div class="sub">$2,220.00 cost basis</div>
+              </div>
+              <div class="stat">
+                <div class="label">cash · runway</div>
+                <div class="value">$1,000.00</div>
+                <div class="sub">covers current runway target</div>
+              </div>
+              <div class="stat">
+                <div class="label">concentration</div>
+                <div class="value warn">Over cap</div>
+                <div class="sub">2 positions ≥ 30% hard cap</div>
+              </div>
+            </div>
+
+            <!-- Section: scenarios + allocation + watchlist -->
+            <div class="section-divider">
+              <span class="label">— scenarios · allocation · watchlist</span>
+              <span class="rule"></span>
+              <span class="meta">3 ready · 12 symbols</span>
+            </div>
+
+            <div class="split-3">
+              <div class="panel">
+                <div class="panel-head">
+                  <div>
+                    <div class="kicker">profit-lock</div>
+                    <div class="title">Top manual scenarios</div>
+                  </div>
+                  <span class="pill">3 ready</span>
+                </div>
+                <div class="row-list">
+                  <div class="row">
+                    <div class="idx">01</div>
+                    <div>
+                      <div class="ticker">AAPL · Trim to 30% weight</div>
+                      <div class="desc">Apple — reduce to concentration cap</div>
+                    </div>
+                    <div>
+                      <div class="price">$983.99</div>
+                      <div class="delta pos">+lock</div>
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="idx">02</div>
+                    <div>
+                      <div class="ticker">NVDA · Trim to 30% weight</div>
+                      <div class="desc">NVIDIA — reduce to concentration cap</div>
+                    </div>
+                    <div>
+                      <div class="price">$160.61</div>
+                      <div class="delta pos">+lock</div>
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="idx">03</div>
+                    <div>
+                      <div class="ticker">AAPL · Recover cost basis</div>
+                      <div class="desc">Apple — raise cash to original basis</div>
+                    </div>
+                    <div>
+                      <div class="price">$1,411.81</div>
+                      <div class="delta pos">+lock</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head">
+                  <div>
+                    <div class="kicker">allocation</div>
+                    <div class="title">Modeled weight</div>
+                  </div>
+                  <span class="pill">$3,052.48</span>
+                </div>
+                <div class="alloc-bar">
+                  <span style="width:64.2%;background:#2f6b5e"></span>
+                  <span style="width:35.8%;background:#a86b3a"></span>
+                </div>
+                <div class="alloc-legend">
+                  <div class="item">
+                    <span class="swatch" style="background:#2f6b5e"></span>
+                    <span><b>AAPL</b> <span class="muted">Apple</span></span>
+                    <span class="pct">64.2%</span>
+                    <span class="val">$1,961.20</span>
+                  </div>
+                  <div class="item">
+                    <span class="swatch" style="background:#a86b3a"></span>
+                    <span><b>NVDA</b> <span class="muted">NVIDIA</span></span>
+                    <span class="pct">35.8%</span>
+                    <span class="val">$1,091.28</span>
+                  </div>
+                </div>
+                <div class="dash-rule"></div>
+                <div class="hint warn">
+                  Both holdings exceed the 30% hard cap. Trim scenarios are queued in profit-lock.
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head">
+                  <div>
+                    <div class="kicker">watchlist</div>
+                    <div class="title">Session movement</div>
+                  </div>
+                  <span class="pill">12 symbols</span>
+                </div>
+                <div class="row-list" id="watchlist"></div>
+              </div>
+            </div>
+
+            <!-- Section: tickets -->
+            <div class="section-divider">
+              <span class="label">— manual tickets</span>
+              <span class="rule"></span>
+              <span class="meta">3 checklist-ready</span>
+            </div>
+
+            <div class="cards">
+              <div class="card">
+                <div class="card-head">
+                  <span class="card-status ready">checklist ready</span>
+                  <span class="muted small">2.5 sh</span>
+                </div>
+                <h3>AAPL · Manual trim / sale review</h3>
+                <div class="kv"><span class="k">action</span><span class="v">Manual trim / sale</span></div>
+                <div class="kv"><span class="k">raised</span><span class="v">$490.30</span></div>
+                <div class="kv"><span class="k">realized</span><span class="v pos">+$115.30</span></div>
+                <div class="kv"><span class="k">reserve</span><span class="v">$28.83</span></div>
+                <div class="reason">Lock 25% of unrealized gain. Manual scenario for realizing a slice of the open gain while leaving the rest of the position intact.</div>
+                <div class="actions">
+                  <button class="btn">Plan</button>
+                  <button class="btn">Executed</button>
+                  <button class="btn">Mistake</button>
+                  <button class="btn">Result</button>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-head">
+                  <span class="card-status ready">checklist ready</span>
+                  <span class="muted small">7.6 sh</span>
+                </div>
+                <h3>AAPL · Manual trim / sale review</h3>
+                <div class="kv"><span class="k">action</span><span class="v">Manual trim / sale</span></div>
+                <div class="kv"><span class="k">raised</span><span class="v">$1,500.00</span></div>
+                <div class="kv"><span class="k">realized</span><span class="v pos">+$352.74</span></div>
+                <div class="kv"><span class="k">reserve</span><span class="v">$88.19</span></div>
+                <div class="reason">Recover cost basis. Manual scenario for raising cash roughly equal to the original cost basis.</div>
+                <div class="actions">
+                  <button class="btn">Plan</button>
+                  <button class="btn">Executed</button>
+                  <button class="btn">Mistake</button>
+                  <button class="btn">Result</button>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-head">
+                  <span class="card-status ready">checklist ready</span>
+                  <span class="muted small">5.1 sh</span>
+                </div>
+                <h3>AAPL · Manual trim / sale review</h3>
+                <div class="kv"><span class="k">action</span><span class="v">Manual trim / sale</span></div>
+                <div class="kv"><span class="k">raised</span><span class="v">$1,000.00</span></div>
+                <div class="kv"><span class="k">realized</span><span class="v pos">+$235.16</span></div>
+                <div class="kv"><span class="k">reserve</span><span class="v">$58.79</span></div>
+                <div class="reason">Raise specific cash amount. Manual scenario for raising the cash target entered in settings.</div>
+                <div class="actions">
+                  <button class="btn">Plan</button>
+                  <button class="btn">Executed</button>
+                  <button class="btn">Mistake</button>
+                  <button class="btn">Result</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ─── RESEARCH ─── -->
+          <section class="view" data-view="research">
+            <div class="page-head">
+              <div>
+                <div class="kicker">— ai stack research</div>
+                <h1 class="page-title">Research card</h1>
+                <div class="breadcrumbs">
+                  workspace<span class="sep">/</span>research<span class="sep">/</span>AAPL
+                </div>
+              </div>
+              <div class="actions">
+                <button class="btn">Open Codex queue</button>
+                <button class="btn primary">Run research</button>
+              </div>
+            </div>
+
+            <div class="tabs">
+              <button class="tab active">Card<span class="count">12</span></button>
+              <button class="tab">Layers<span class="count">6</span></button>
+              <button class="tab">Codex queue<span class="count">3</span></button>
+              <button class="tab">Imports</button>
+            </div>
+
+            <div class="research-grid">
+              <div class="panel">
+                <div class="panel-head">
+                  <div>
+                    <div class="kicker">ai stack</div>
+                    <div class="title">Layer watchlist</div>
+                  </div>
+                  <span class="pill">12 cards</span>
+                </div>
+
+                <div class="layer">
+                  <div class="layer-head"><span>Hyperscalers</span><span class="ct">2</span></div>
+                  <div class="layer-tags">
+                    <span class="tag">AAPL<span class="score">50</span></span>
+                    <span class="tag">GOOG<span class="score">50</span></span>
+                  </div>
+                </div>
+                <div class="layer">
+                  <div class="layer-head"><span>GPU / chip designers</span><span class="ct">2</span></div>
+                  <div class="layer-tags">
+                    <span class="tag">NVDA<span class="score">50</span></span>
+                    <span class="tag">AMD<span class="score">50</span></span>
+                  </div>
+                </div>
+                <div class="layer">
+                  <div class="layer-head"><span>Foundries</span><span class="ct">1</span></div>
+                  <div class="layer-tags"><span class="tag">TSM<span class="score">50</span></span></div>
+                </div>
+                <div class="layer">
+                  <div class="layer-head"><span>Memory</span><span class="ct">1</span></div>
+                  <div class="layer-tags"><span class="tag">MU<span class="score">50</span></span></div>
+                </div>
+                <div class="layer">
+                  <div class="layer-head"><span>Power / cooling</span><span class="ct">2</span></div>
+                  <div class="layer-tags">
+                    <span class="tag">VRT<span class="score">50</span></span>
+                    <span class="tag">CEG<span class="score">50</span></span>
+                  </div>
+                </div>
+                <div class="layer">
+                  <div class="layer-head"><span>EDA / IP</span><span class="ct">1</span></div>
+                  <div class="layer-tags"><span class="tag">SNPS<span class="score">50</span></span></div>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head">
+                  <div>
+                    <div class="kicker">research card</div>
+                    <div class="title">AAPL · Apple</div>
+                  </div>
+                  <span class="pill">Research draft</span>
+                </div>
+
+                <div class="kv" style="margin-bottom:6px"><span class="k">layer</span><span class="v">Hyperscalers · current holding</span></div>
+                <div class="score-bar">
+                  <div class="track"><div class="fill" style="width:50%"></div></div>
+                  <div class="num">50 / 100</div>
+                </div>
+                <div class="muted small" style="margin-top:4px">4 open fields</div>
+
+                <div class="hint">
+                  Manual checklist only. Source-reported analyst targets and setup levels are <b>context</b>, not trade instructions.
+                </div>
+
+                <div class="actions" style="display:flex;gap:8px;margin-top:6px;margin-bottom:14px">
+                  <button class="btn">Run research</button>
+                  <button class="btn">Run layer</button>
+                  <button class="btn ghost">Reset card</button>
+                </div>
+
+                <div class="dash-rule"></div>
+
+                <div class="field">
+                  <label>Thesis</label>
+                  <textarea placeholder="One- or two-line summary of why this name is on the list."></textarea>
+                </div>
+                <div class="field-row">
+                  <div class="field">
+                    <label>Setup target</label>
+                    <input value="$210" />
+                  </div>
+                  <div class="field">
+                    <label>Invalidation</label>
+                    <input value="$182" />
+                  </div>
+                </div>
+                <div class="field-row">
+                  <div class="field">
+                    <label>Catalyst window</label>
+                    <input value="Q3 earnings · Aug 1" />
+                  </div>
+                  <div class="field">
+                    <label>Source</label>
+                    <input value="Codex · 2026-04-22" />
+                  </div>
+                </div>
+
+                <div class="hint warn">
+                  AI-drafted source summary for manual review only. Not a recommendation, rating, guaranteed outcome, or buy/sell instruction.
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head">
+                  <div>
+                    <div class="kicker">checklist</div>
+                    <div class="title">Candidate filter</div>
+                  </div>
+                  <span class="pill">12 shown</span>
+                </div>
+
+                <div class="field">
+                  <label>Layer</label>
+                  <select>
+                    <option>All layers</option>
+                    <option>Hyperscalers</option>
+                    <option>GPU / chip designers</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>Min score</label>
+                  <input value="0  / 100" />
+                </div>
+                <label class="checkbox"><input type="checkbox" checked /> Holdings only</label>
+                <label class="checkbox"><input type="checkbox" /> Needs input</label>
+
+                <div class="dash-rule"></div>
+                <div class="muted small">Scores count completed checklist fields only. They do not score attractiveness, probability, or expected return.</div>
+
+                <div class="dash-rule"></div>
+                <div class="row">
+                  <div class="idx">50</div>
+                  <div>
+                    <div class="ticker">AAPL</div>
+                    <div class="desc">Hyperscalers · Research draft</div>
+                  </div>
+                  <div class="delta">4 open</div>
+                </div>
+                <div class="row">
+                  <div class="idx">50</div>
+                  <div>
+                    <div class="ticker">NVDA</div>
+                    <div class="desc">GPU/chip · Research draft</div>
+                  </div>
+                  <div class="delta">4 open</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ─── PLANNER ─── -->
+          <section class="view" data-view="planner">
+            <div class="page-head">
+              <div>
+                <div class="kicker">— plan builder</div>
+                <h1 class="page-title">Planner</h1>
+                <div class="breadcrumbs">workspace<span class="sep">/</span>planner</div>
+              </div>
+              <div class="actions">
+                <button class="btn">Reset draft</button>
+                <button class="btn primary">Save plan</button>
+              </div>
+            </div>
+
+            <div class="split-2">
+              <div class="panel">
+                <div class="panel-head">
+                  <div>
+                    <div class="kicker">inputs</div>
+                    <div class="title">Manual entry</div>
+                  </div>
+                </div>
+
+                <div class="field-row">
+                  <div class="field">
+                    <label>Symbol</label>
+                    <input value="AAPL" />
+                  </div>
+                  <div class="field">
+                    <label>Action</label>
+                    <select>
+                      <option>Trim to weight</option>
+                      <option>Recover cost basis</option>
+                      <option>Lock % of gain</option>
+                      <option>Raise specific cash</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field-row">
+                  <div class="field">
+                    <label>Shares</label>
+                    <input value="2.5" />
+                  </div>
+                  <div class="field">
+                    <label>Avg cost</label>
+                    <input value="$150.00" />
+                  </div>
+                </div>
+                <div class="field-row">
+                  <div class="field">
+                    <label>Target weight</label>
+                    <input value="30%" />
+                  </div>
+                  <div class="field">
+                    <label>Reserve %</label>
+                    <input value="25%" />
+                  </div>
+                </div>
+                <div class="field">
+                  <label>Reason</label>
+                  <textarea>Trim to 30% weight. Manual scenario for reducing this position to the selected concentration target.</textarea>
+                </div>
+                <div class="field">
+                  <label>Invalidation</label>
+                  <textarea>AI feature cycle fails to change growth or multiple support.</textarea>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head">
+                  <div>
+                    <div class="kicker">preview</div>
+                    <div class="title">Plan output</div>
+                  </div>
+                  <span class="pill">draft</span>
+                </div>
+
+                <div class="kv"><span class="k">action</span><span class="v">Trim to 30% weight</span></div>
+                <div class="kv"><span class="k">shares to sell</span><span class="v">2.5</span></div>
+                <div class="kv"><span class="k">est. raise</span><span class="v">$490.30</span></div>
+                <div class="kv"><span class="k">est. cost basis</span><span class="v">$375.00</span></div>
+                <div class="kv"><span class="k">est. realized</span><span class="v pos">+$115.30</span></div>
+                <div class="kv"><span class="k">reserve set-aside</span><span class="v">$28.83</span></div>
+                <div class="kv"><span class="k">remaining weight</span><span class="v">29.6%</span></div>
+
+                <div class="dash-rule"></div>
+
+                <div class="hint">
+                  Manual checklist only. Verify current quote, shares, and average cost before acting. Record the actual fill, realized P/L, and tax-prep notes after execution.
+                </div>
+
+                <ul style="font-size:12px;color:var(--ink-1);margin:6px 0;padding-left:18px;">
+                  <li>Verify current quote, shares, and avg cost manually before acting.</li>
+                  <li>Review reserve estimate and cash target before entering anything in Robinhood.</li>
+                  <li>Record the actual fill, realized P/L, and tax-prep notes after execution.</li>
+                </ul>
+
+                <div class="actions" style="display:flex;gap:8px;margin-top:12px">
+                  <button class="btn">Save as draft</button>
+                  <button class="btn primary">Convert to ticket</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ─── JOURNAL ─── -->
+          <section class="view" data-view="journal">
+            <div class="page-head">
+              <div>
+                <div class="kicker">— trade journal</div>
+                <h1 class="page-title">Journal</h1>
+                <div class="breadcrumbs">workspace<span class="sep">/</span>journal<span class="sep">/</span>2026</div>
+              </div>
+              <div class="actions">
+                <button class="btn">Tax export</button>
+                <button class="btn">CSV export</button>
+                <button class="btn primary">+ Entry</button>
+              </div>
+            </div>
+
+            <div class="tabs">
+              <button class="tab active">All<span class="count">14</span></button>
+              <button class="tab">Plans<span class="count">5</span></button>
+              <button class="tab">Executed<span class="count">6</span></button>
+              <button class="tab">Mistakes<span class="count">2</span></button>
+              <button class="tab">Results<span class="count">1</span></button>
+            </div>
+
+            <div class="ledger">
+              <div class="ledger-row head">
+                <div>date</div><div>entry</div>
+                <div class="num">shares</div><div class="num">raised</div>
+                <div class="num">realized</div><div class="num">reserve</div><div class="num">type</div>
+              </div>
+              <div class="ledger-row">
+                <div class="mono small muted">2026-04-12</div>
+                <div>
+                  <div><b>AAPL</b> · Manual trim / sale review</div>
+                  <div class="muted small">Trim to 30% weight</div>
+                </div>
+                <div class="num">2.5000</div>
+                <div class="num">$490.30</div>
+                <div class="num pos">+$115.30</div>
+                <div class="num">$28.83</div>
+                <div class="num"><span class="card-status exec">exec</span></div>
+              </div>
+              <div class="ledger-row">
+                <div class="mono small muted">2026-04-08</div>
+                <div>
+                  <div><b>AAPL</b> · Manual trim / sale review</div>
+                  <div class="muted small">Recover cost basis</div>
+                </div>
+                <div class="num">7.6484</div>
+                <div class="num">$1,500.00</div>
+                <div class="num pos">+$352.74</div>
+                <div class="num">$88.19</div>
+                <div class="num"><span class="card-status exec">exec</span></div>
+              </div>
+              <div class="ledger-row">
+                <div class="mono small muted">2026-04-04</div>
+                <div>
+                  <div><b>AAPL</b> · Manual trim / sale review</div>
+                  <div class="muted small">Raise specific cash</div>
+                </div>
+                <div class="num">5.0989</div>
+                <div class="num">$1,000.00</div>
+                <div class="num pos">+$235.16</div>
+                <div class="num">$58.79</div>
+                <div class="num"><span class="card-status exec">exec</span></div>
+              </div>
+              <div class="ledger-row">
+                <div class="mono small muted">2026-03-28</div>
+                <div>
+                  <div><b>NVDA</b> · Lock 20% of gain</div>
+                  <div class="muted small">Manual scenario</div>
+                </div>
+                <div class="num">1.2000</div>
+                <div class="num">$392.24</div>
+                <div class="num pos">+$92.24</div>
+                <div class="num">$23.06</div>
+                <div class="num"><span class="card-status exec">exec</span></div>
+              </div>
+              <div class="ledger-row">
+                <div class="mono small muted">2026-03-22</div>
+                <div>
+                  <div><b>NVDA</b> · Lock 10% of gain</div>
+                  <div class="muted small">Manual scenario</div>
+                </div>
+                <div class="num">0.6000</div>
+                <div class="num">$196.12</div>
+                <div class="num pos">+$46.12</div>
+                <div class="num">$11.53</div>
+                <div class="num"><span class="card-status exec">exec</span></div>
+              </div>
+              <div class="ledger-row">
+                <div class="mono small muted">2026-03-15</div>
+                <div>
+                  <div><b>AAPL</b> · Trim to 30%</div>
+                  <div class="muted small">Manual scenario</div>
+                </div>
+                <div class="num">3.4000</div>
+                <div class="num">$1,045.46</div>
+                <div class="num pos">+$245.85</div>
+                <div class="num">$61.46</div>
+                <div class="num"><span class="card-status draft">plan</span></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ─── CASH PLAN ─── -->
+          <section class="view" data-view="cash">
+            <div class="page-head">
+              <div>
+                <div class="kicker">— profit cash plan</div>
+                <h1 class="page-title">Cash plan</h1>
+                <div class="breadcrumbs">workspace<span class="sep">/</span>cash plan</div>
+              </div>
+              <div class="actions">
+                <button class="btn">Adjust splits</button>
+                <button class="btn primary">Save plan</button>
+              </div>
+            </div>
+
+            <div class="cash-plan">
+              <div class="cash-cell">
+                <div class="label">realized</div>
+                <div class="val pos">+$1,087.41</div>
+                <div class="muted small" style="margin-top:6px">YTD across executed entries</div>
+              </div>
+              <div class="cash-cell">
+                <div class="label">reserve</div>
+                <div class="val">$271.86</div>
+                <div class="alloc-bar" style="margin-top:8px">
+                  <span style="width:25%;background:var(--accent)"></span>
+                  <span style="width:75%;background:var(--bg-3)"></span>
+                </div>
+                <div class="muted small">25% set-aside</div>
+              </div>
+              <div class="cash-cell">
+                <div class="label">pay myself</div>
+                <div class="val">$326.22</div>
+                <div class="alloc-bar" style="margin-top:8px">
+                  <span style="width:30%;background:var(--green)"></span>
+                  <span style="width:70%;background:var(--bg-3)"></span>
+                </div>
+                <div class="muted small">30% draw</div>
+              </div>
+              <div class="cash-cell">
+                <div class="label">redeploy</div>
+                <div class="val">$489.33</div>
+                <div class="alloc-bar" style="margin-top:8px">
+                  <span style="width:45%;background:#6b8aa8"></span>
+                  <span style="width:55%;background:var(--bg-3)"></span>
+                </div>
+                <div class="muted small">45% to next ticket</div>
+              </div>
+            </div>
+
+            <div class="section-divider">
+              <span class="label">— allocation rules</span>
+              <span class="rule"></span>
+              <span class="meta">edit splits below</span>
+            </div>
+
+            <div class="split-2">
+              <div class="panel">
+                <div class="panel-head">
+                  <div>
+                    <div class="kicker">splits</div>
+                    <div class="title">Distribution</div>
+                  </div>
+                </div>
+                <div class="field-row">
+                  <div class="field"><label>Reserve %</label><input value="25" /></div>
+                  <div class="field"><label>Pay myself %</label><input value="30" /></div>
+                </div>
+                <div class="field-row">
+                  <div class="field"><label>Redeploy %</label><input value="45" /></div>
+                  <div class="field"><label>Floor reserve</label><input value="$50" /></div>
+                </div>
+                <label class="checkbox"><input type="checkbox" checked /> Skip redeploy when concentration over cap</label>
+                <label class="checkbox"><input type="checkbox" /> Roll redeploy into next ticket</label>
+              </div>
+              <div class="panel">
+                <div class="panel-head">
+                  <div>
+                    <div class="kicker">notes</div>
+                    <div class="title">Rationale</div>
+                  </div>
+                </div>
+                <div class="hint">
+                  Cash plan is a journal of intent. It does not move money or place orders. Always reconcile against your broker before acting.
+                </div>
+                <ul style="font-size:12px;color:var(--ink-1);padding-left:18px">
+                  <li>Reserve grows the runway target before redeploy.</li>
+                  <li>Pay myself rolls to a separate cash bucket monthly.</li>
+                  <li>Redeploy returns to the next manual ticket.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <!-- ─── IMPORT ─── -->
+          <section class="view" data-view="import">
+            <div class="page-head">
+              <div>
+                <div class="kicker">— robinhood csv reconcile</div>
+                <h1 class="page-title">Import</h1>
+                <div class="breadcrumbs">workspace<span class="sep">/</span>import<span class="sep">/</span>robinhood</div>
+              </div>
+              <div class="actions">
+                <button class="btn">Open template</button>
+                <button class="btn primary">Choose CSV</button>
+              </div>
+            </div>
+
+            <div class="split-2">
+              <div class="panel">
+                <div class="panel-head">
+                  <div>
+                    <div class="kicker">csv preview</div>
+                    <div class="title">Robinhood activity</div>
+                  </div>
+                  <span class="pill">14 rows · 2 unmapped</span>
+                </div>
+                <div class="ledger">
+                  <div class="ledger-row head">
+                    <div>date</div><div>desc</div>
+                    <div class="num">qty</div><div class="num">price</div>
+                    <div class="num">amount</div><div class="num">fees</div><div class="num">type</div>
+                  </div>
+                  <div class="ledger-row">
+                    <div class="mono small muted">04-12</div>
+                    <div><b>AAPL</b> · Sell</div>
+                    <div class="num">2.5</div><div class="num">$196.12</div>
+                    <div class="num">$490.30</div><div class="num">$0.00</div>
+                    <div class="num"><span class="card-status exec">match</span></div>
+                  </div>
+                  <div class="ledger-row">
+                    <div class="mono small muted">04-08</div>
+                    <div><b>AAPL</b> · Sell</div>
+                    <div class="num">7.6484</div><div class="num">$196.10</div>
+                    <div class="num">$1,500.00</div><div class="num">$0.00</div>
+                    <div class="num"><span class="card-status exec">match</span></div>
+                  </div>
+                  <div class="ledger-row">
+                    <div class="mono small muted">04-04</div>
+                    <div><b>AAPL</b> · Sell</div>
+                    <div class="num">5.0989</div><div class="num">$196.12</div>
+                    <div class="num">$1,000.00</div><div class="num">$0.00</div>
+                    <div class="num"><span class="card-status ready">review</span></div>
+                  </div>
+                  <div class="ledger-row">
+                    <div class="mono small muted">03-28</div>
+                    <div><b>IREN</b> · Buy</div>
+                    <div class="num">12.0000</div><div class="num">$8.30</div>
+                    <div class="num">-$99.60</div><div class="num">$0.00</div>
+                    <div class="num"><span class="card-status draft">unmapped</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head">
+                  <div>
+                    <div class="kicker">reconcile</div>
+                    <div class="title">Match against journal</div>
+                  </div>
+                </div>
+                <div class="kv"><span class="k">rows in csv</span><span class="v">14</span></div>
+                <div class="kv"><span class="k">matched</span><span class="v pos">11</span></div>
+                <div class="kv"><span class="k">review</span><span class="v">1</span></div>
+                <div class="kv"><span class="k">unmapped</span><span class="v">2</span></div>
+                <div class="dash-rule"></div>
+                <div class="kv"><span class="k">csv realized</span><span class="v pos">+$1,087.41</span></div>
+                <div class="kv"><span class="k">journal realized</span><span class="v pos">+$1,087.41</span></div>
+                <div class="kv"><span class="k">delta</span><span class="v">$0.00</span></div>
+                <div class="dash-rule"></div>
+                <div class="hint">
+                  Importer reads CSV locally only. It does not connect to Robinhood, store credentials, or place trades.
+                </div>
+                <div class="actions" style="display:flex;gap:8px;margin-top:10px">
+                  <button class="btn">Map remaining</button>
+                  <button class="btn primary">Apply matches</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+        </div>
+
+        <!-- ───── Status bar ───── -->
+        <div class="statusbar">
+          <span class="item"><b>cmd</b> +K · search</span>
+          <span class="item"><b>⌘1–6</b> switch view</span>
+          <span class="item"><b>g j</b> jump to journal</span>
+          <span class="item"><b>n</b> new ticket</span>
+          <span class="right item">14 entries · 2026 ytd realized <b style="color:var(--green)">+$1,087.41</b></span>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      // ───── theme toggle ─────
+      const root = document.documentElement;
+      const toggle = document.getElementById("themeToggle");
+      const setTheme = (t) => {
+        root.dataset.theme = t;
+        toggle.textContent = t === "dark" ? "[ dark ]" : "[ light ]";
+        localStorage.setItem("scc-theme", t);
+      };
+      setTheme(localStorage.getItem("scc-theme") || "dark");
+      toggle.addEventListener("click", () => {
+        setTheme(root.dataset.theme === "dark" ? "light" : "dark");
+      });
+
+      // ───── view switcher ─────
+      const navItems = document.querySelectorAll(".nav-item[data-view]");
+      const views = document.querySelectorAll(".view");
+      const switchView = (key) => {
+        navItems.forEach((n) => n.classList.toggle("active", n.dataset.view === key));
+        views.forEach((v) => v.classList.toggle("active", v.dataset.view === key));
+        document.querySelector(".content").scrollTop = 0;
+      };
+      navItems.forEach((n) =>
+        n.addEventListener("click", () => switchView(n.dataset.view))
+      );
+
+      // ⌘1-6 hotkeys
+      const order = ["cockpit", "research", "planner", "journal", "cash", "import"];
+      window.addEventListener("keydown", (e) => {
+        if ((e.metaKey || e.ctrlKey) && /^[1-6]$/.test(e.key)) {
+          e.preventDefault();
+          switchView(order[Number(e.key) - 1]);
+        }
+      });
+
+      // ───── tabs ─────
+      document.querySelectorAll(".tabs").forEach((group) => {
+        group.querySelectorAll(".tab").forEach((tab) => {
+          tab.addEventListener("click", () => {
+            group.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+            tab.classList.add("active");
+          });
+        });
+      });
+
+      // ───── watchlist render ─────
+      const symbols = [
+        ["AAPL", "Hyperscalers", 196.12, 0],
+        ["GOOG", "Hyperscalers", 186.40, 0],
+        ["NVDA", "GPU/chip designers", 181.88, 0.4],
+        ["IREN", "Data centers", 8.32, -1.2],
+        ["AMD", "GPU/chip designers", 55.60, 0.8],
+        ["TSM", "Foundries", 89.60, -0.3],
+        ["ASML", "Semiconductor equipment", 147.20, 1.4],
+        ["SNPS", "EDA / IP", 169.10, -0.6],
+        ["ANET", "Networking", 141.70, 0.2],
+        ["VRT", "Power / cooling", 98.40, 2.1],
+        ["CEG", "Energy", 52.30, -0.9],
+        ["MU", "Memory", 92.10, 1.0],
+      ];
+      const wl = document.getElementById("watchlist");
+      const sparkBars = (delta) => {
+        const out = [];
+        for (let i = 0; i < 10; i++) {
+          const seed = Math.sin(i * 1.7 + delta * 3.1) * 0.5 + 0.5;
+          const h = 6 + Math.round(seed * 12);
+          let cls = "";
+          if (delta > 0 && i > 5) cls = "up";
+          if (delta < 0 && i > 5) cls = "down";
+          out.push(`<span class="${cls}" style="height:${h}px"></span>`);
+        }
+        return out.join("");
+      };
+      const fmtPrice = (p) => "$" + p.toFixed(2);
+      const fmtPct = (d) => (d >= 0 ? "+" : "") + d.toFixed(2) + "%";
+      wl.innerHTML = symbols
+        .map(
+          ([s, sec, p, d]) => `
+          <div class="row">
+            <div></div>
+            <div>
+              <div class="ticker">${s}</div>
+              <div class="desc">${sec}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div class="spark">${sparkBars(d)}</div>
+              <div>
+                <div class="price">${fmtPrice(p)}</div>
+                <div class="delta ${d > 0 ? "pos" : d < 0 ? "neg" : ""}">${fmtPct(d)}</div>
+              </div>
+            </div>
+          </div>`
+        )
+        .join("");
+
+      // ───── card hover (subtle pulse) ─────
+      document.querySelectorAll(".card .actions .btn").forEach((b) =>
+        b.addEventListener("click", (e) => {
+          e.stopPropagation();
+          b.style.borderColor = "var(--accent)";
+          b.style.color = "var(--accent)";
+          setTimeout(() => {
+            b.style.borderColor = "";
+            b.style.color = "";
+          }, 600);
+        })
+      );
+
+      // ───── status bar live clock ─────
+      const liveTime = document.querySelector(".titlebar .right span:nth-child(2)");
+      const tick = () => {
+        const d = new Date();
+        liveTime.textContent = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
+      };
+      tick();
+      setInterval(tick, 1000);
+    </script>
+  </body>
+</html>

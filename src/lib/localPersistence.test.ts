@@ -159,6 +159,46 @@ describe('local Swing state persistence', () => {
     )
   })
 
+  it('adds newly seeded research cards without overwriting saved edits', () => {
+    const defaults = buildLocalState()
+    const savedCards = defaults.researchCards
+      .filter((card) => card.symbol !== 'HIMS')
+      .map((card) =>
+        card.symbol === 'AAPL'
+          ? {
+              ...card,
+              research: {
+                ...card.research,
+                thesis: 'Saved local AAPL thesis',
+              },
+            }
+          : card,
+      )
+    const saved = buildLocalState({ researchCards: savedCards })
+
+    const result = parseSwingLocalStateSnapshot(
+      serializeSwingLocalState(buildSwingLocalStateSnapshot(saved, SAVED_AT)),
+      defaults,
+    )
+
+    expect(result.ok).toBe(true)
+
+    if (!result.ok) {
+      return
+    }
+
+    expect(
+      result.snapshot.state.researchCards.find((card) => card.symbol === 'AAPL')
+        ?.research.thesis,
+    ).toBe('Saved local AAPL thesis')
+    expect(
+      result.snapshot.state.researchCards.find((card) => card.symbol === 'HIMS'),
+    ).toMatchObject({
+      name: 'Hims & Hers Health',
+      stackLayer: 'general_watchlist',
+    })
+  })
+
   it('preserves Robinhood review gates across reload hydration', () => {
     const parsed = parseRobinhoodCsvFile({
       fileName: 'realized-gain-loss.csv',
