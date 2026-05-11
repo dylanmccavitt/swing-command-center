@@ -167,7 +167,7 @@ export function Import(props: { state: CommandCenterState }) {
               'desc',
               <div className="num" key="qty">qty</div>,
               <div className="num" key="price">price</div>,
-              <div className="num" key="proceeds">proceeds</div>,
+              <div className="num" key="cash">cash</div>,
               <div className="num" key="realized">realized</div>,
               <div className="num" key="type">type</div>,
             ]}
@@ -187,13 +187,11 @@ export function Import(props: { state: CommandCenterState }) {
                 </button>,
                 <div className="num" key="qty">{row.quantity ?? ''}</div>,
                 <div className="num" key="price">{formatCurrency(row.price)}</div>,
-                <div className="num" key="proceeds">
-                  {formatCurrency(row.proceeds)}
+                <div className="num" key="cash">
+                  {formatRobinhoodCashValue(row)}
                 </div>,
                 <div className="num" key="realized">
-                  {row.realizedGainLoss === null
-                    ? 'missing'
-                    : formatSignedCurrency(row.realizedGainLoss)}
+                  {formatRobinhoodRealizedValue(row)}
                 </div>,
                 <div className="num" key="type">
                   <span
@@ -524,6 +522,18 @@ function getHoldingReviewStatusClass(
 
 function formatMaybeNumber(value: number | null): string {
   return value === null ? 'missing' : String(Number(value.toFixed(6)))
+}
+
+function formatRobinhoodCashValue(row: RobinhoodNormalizedRow): string {
+  return formatCurrency(row.proceeds ?? row.amount)
+}
+
+function formatRobinhoodRealizedValue(row: RobinhoodNormalizedRow): string {
+  if (row.realizedGainLoss !== null) {
+    return formatSignedCurrency(row.realizedGainLoss)
+  }
+
+  return row.kind === 'sell' ? 'missing basis' : 'n/a'
 }
 
 function formatCurrentAverageCost(value: string | undefined): string {

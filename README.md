@@ -79,9 +79,11 @@ Do not commit `.env.local`.
    totals, review derived holdings, and sync accepted holdings/lots or sell
    fills. Current positions CSVs can update shares and basis after review, and
    eligible accepted account-activity buys can sync directly into holdings.
-   Account activity CSVs can prove cash proceeds or derive ledger positions
-   when enough data is present; realized gain/loss CSVs or manual basis are
-   needed before reserve and pay-myself estimates are meaningful.
+   Account activity CSVs can prove cash proceeds, cash amounts, dividends,
+   interest, fees, transfers, and conservative share adjustments, or derive
+   ledger positions when enough data is present; realized gain/loss CSVs or
+   manual basis are needed before reserve and pay-myself estimates are
+   meaningful.
 7. Export journal data when I want a tax review summary.
 
 ## Checks

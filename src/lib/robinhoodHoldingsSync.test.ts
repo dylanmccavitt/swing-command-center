@@ -84,6 +84,63 @@ describe('Robinhood holdings sync', () => {
     expect(holdings[0].notes.join(' ')).toContain('basis is missing')
   })
 
+  it('uses accepted account corporate-action position quantities without inventing basis', () => {
+    const account = parseRobinhoodCsvFile({
+      fileName: 'account-activity.csv',
+      importedAt: IMPORTED_AT,
+      reportKind: 'account_activity',
+      text: [
+        '"Activity Date","Process Date","Settle Date","Instrument","Description","Trans Code","Quantity","Price","Amount"',
+        '"11/12/2018","11/12/2018","11/12/2018","AAPL","Apple',
+        'CUSIP: 037833100","CONV","4","",""',
+        '"01/08/2019","01/08/2019","01/10/2019","AAPL","Apple',
+        'CUSIP: 037833100","Buy","1","$150.17","($150.17)"',
+        '"08/31/2020","08/31/2020","08/31/2020","AAPL","Apple',
+        'CUSIP: 037833100","SPL","15","",""',
+      ].join('\n'),
+    })
+    const holdings = deriveRobinhoodHoldings({
+      imports: account.batch ? [account.batch] : [],
+      rows: acceptRows(account.rows),
+    })
+
+    expect(holdings).toHaveLength(1)
+    expect(holdings[0]).toMatchObject({
+      averageCost: null,
+      buyQuantity: 20,
+      costBasis: null,
+      shares: 20,
+      status: 'missing_basis',
+      symbol: 'AAPL',
+    })
+  })
+
+  it('does not let account security-exchange rows change holdings shares', () => {
+    const account = parseRobinhoodCsvFile({
+      fileName: 'account-activity.csv',
+      importedAt: IMPORTED_AT,
+      reportKind: 'account_activity',
+      text: [
+        '"Activity Date","Process Date","Settle Date","Instrument","Description","Trans Code","Quantity","Price","Amount"',
+        '"05/05/2022","05/05/2022","05/05/2022","DKNG","DraftKings',
+        'CUSIP: 26142V105","SXCH","10.0181","",""',
+        '"05/05/2022","05/05/2022","05/05/2022","DKNG","Draftkings',
+        'CUSIP: 26142R104","SXCH","10.0181S","",""',
+      ].join('\n'),
+    })
+    const holdings = deriveRobinhoodHoldings({
+      imports: account.batch ? [account.batch] : [],
+      rows: acceptRows(account.rows),
+    })
+
+    expect(account.rows.map((row) => row.kind)).toEqual([
+      'corporate_action',
+      'corporate_action',
+    ])
+    expect(account.rows.map((row) => row.quantity)).toEqual([10.0181, 10.0181])
+    expect(holdings).toEqual([])
+  })
+
   it('uses accepted positions CSV rows ahead of ledger projections for the same symbol', () => {
     const account = parseRobinhoodCsvFile({
       fileName: 'account-activity.csv',

@@ -20,6 +20,7 @@ export type RobinhoodNormalizedKind =
   | 'buy'
   | 'sell'
   | 'position'
+  | 'corporate_action'
   | 'dividend'
   | 'interest'
   | 'transfer'
@@ -241,7 +242,13 @@ export function parseRobinhoodCsvFile(input: {
   }
 
   const headers = parsedLines[headerIndex].map((header) => header.trim())
-  const dataRows = parsedLines.slice(headerIndex + 1)
+  const dataRows = parsedLines
+    .slice(headerIndex + 1)
+    .map((cells, index) => ({
+      cells,
+      sourceRowIndex: headerIndex + index + 2,
+    }))
+    .filter((record) => hasHeaderDataCells(headers, record.cells))
   const reportKind = input.reportKind ?? inferReportKind(headers)
   const batch: RobinhoodImportBatch = {
     id: buildBatchId(input.fileName, reportKind, input.importedAt),
@@ -261,13 +268,13 @@ export function parseRobinhoodCsvFile(input: {
   }
 
   const rows = assignStableRowFingerprints(
-    dataRows.map((cells, index) =>
+    dataRows.map((record) =>
       normalizeRobinhoodRow({
         batch,
-        cells,
+        cells: record.cells,
         headers,
         reportKind,
-        sourceRowIndex: headerIndex + index + 2,
+        sourceRowIndex: record.sourceRowIndex,
       }),
     ),
   )
@@ -477,14 +484,19 @@ function normalizeAccountActivityRow(
   const symbol = normalizeSymbol(
     get(...HEADER_ALIASES.symbol) || extractSymbol(description),
   )
-  const kind = classifyAccountActivity(activityType, description)
   const quantity = positiveNumberOrNull(
-    absoluteNumber(parseOptionalNumber(get(...HEADER_ALIASES.quantity))),
+    absoluteNumber(parseOptionalQuantity(get(...HEADER_ALIASES.quantity))),
   )
   const price = positiveNumberOrNull(
     parseOptionalNumber(get(...HEADER_ALIASES.price)),
   )
   const amount = parseOptionalNumber(get(...HEADER_ALIASES.amount))
+  const kind = classifyAccountActivity({
+    activityType,
+    description,
+    quantity,
+    symbol,
+  })
   const fees = positiveAmount(
     parseOptionalNumber(get(...HEADER_ALIASES.fees)) ?? 0,
   )
@@ -544,7 +556,7 @@ function normalizeCurrentPositionRow(
     get(...HEADER_ALIASES.symbol) || extractSymbol(description),
   )
   const quantity = positiveNumberOrNull(
-    absoluteNumber(parseOptionalNumber(get(...HEADER_ALIASES.quantity))),
+    absoluteNumber(parseOptionalQuantity(get(...HEADER_ALIASES.quantity))),
   )
   const explicitAverageCost = positiveNumberOrNull(
     parseOptionalNumber(get(...HEADER_ALIASES.averageCost)),
@@ -603,7 +615,7 @@ function normalizeRealizedGainLossRow(
     get(...HEADER_ALIASES.symbol) || extractSymbol(description),
   )
   const quantity = positiveNumberOrNull(
-    absoluteNumber(parseOptionalNumber(get(...HEADER_ALIASES.quantity))),
+    absoluteNumber(parseOptionalQuantity(get(...HEADER_ALIASES.quantity))),
   )
   const explicitPrice = positiveNumberOrNull(
     parseOptionalNumber(get(...HEADER_ALIASES.price)),
@@ -735,6 +747,10 @@ function getReconciliationStatus(
     return 'matched'
   }
 
+  if (row.kind === 'corporate_action') {
+    return 'needs_review'
+  }
+
   if (row.kind !== 'sell') {
     return 'needs_review'
   }
@@ -792,6 +808,12 @@ function buildReconciliationNotes(
     notes.push('Position rows must be applied from the holdings review before changing portfolio lots.')
   }
 
+  if (row.kind === 'corporate_action') {
+    notes.push(
+      'Corporate action row is captured for review but does not change holdings or buying power automatically.',
+    )
+  }
+
   if (row.reportKind === 'realized_gain_loss') {
     notes.push('Realized gain/loss CSV values are preferred for this sell.')
   }
@@ -844,11 +866,44 @@ function buildSellMatchKey(row: RobinhoodNormalizedRow): string {
   ].join('|')
 }
 
-function classifyAccountActivity(
-  activityType: string,
-  description: string,
-): RobinhoodNormalizedKind {
-  const text = `${activityType} ${description}`.toLowerCase()
+function classifyAccountActivity(input: {
+  activityType: string
+  description: string
+  quantity: number | null
+  symbol: string
+}): RobinhoodNormalizedKind {
+  const code = input.activityType.trim().toUpperCase()
+  const text = `${input.activityType} ${input.description}`.toLowerCase()
+
+  if (code === 'CONV') {
+    return input.symbol && input.quantity !== null ? 'position' : 'transfer'
+  }
+
+  if (code === 'SPL' || code === 'REC') {
+    return input.symbol && input.quantity !== null
+      ? 'position'
+      : 'corporate_action'
+  }
+
+  if (code === 'SXCH') {
+    return 'corporate_action'
+  }
+
+  if (code === 'CDIV') {
+    return 'dividend'
+  }
+
+  if (code === 'INT') {
+    return 'interest'
+  }
+
+  if (code === 'GOLD') {
+    return 'fee'
+  }
+
+  if (code === 'ACH' || code === 'RTP') {
+    return 'transfer'
+  }
 
   if (/\b(dividend|qualified dividend|cash dividend|div)\b/.test(text)) {
     return 'dividend'
@@ -875,6 +930,15 @@ function classifyAccountActivity(
   }
 
   return 'unknown'
+}
+
+function hasHeaderDataCells(
+  headers: readonly string[],
+  cells: readonly string[],
+): boolean {
+  return headers.some((header, index) =>
+    Boolean(header.trim() && cells[index]?.trim()),
+  )
 }
 
 function findHeaderIndex(lines: readonly string[][]): number {
@@ -1107,6 +1171,21 @@ function parseOptionalNumber(value: unknown): number | null {
   }
 
   return isParentheticalNegative ? -parsed : parsed
+}
+
+function parseOptionalQuantity(value: unknown): number | null {
+  const parsed = parseOptionalNumber(value)
+
+  if (parsed !== null || typeof value !== 'string') {
+    return parsed
+  }
+
+  const trimmed = value.trim()
+  const withoutRobinhoodSuffix = trimmed.replace(/[A-Z]+$/i, '')
+
+  return withoutRobinhoodSuffix === trimmed
+    ? null
+    : parseOptionalNumber(withoutRobinhoodSuffix)
 }
 
 function formatFingerprintNumber(value: number | null): string {

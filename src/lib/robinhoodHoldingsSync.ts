@@ -324,7 +324,13 @@ function deriveLedgerHoldings(
   >()
 
   for (const row of rows) {
-    if (!row.symbol || (row.kind !== 'buy' && row.kind !== 'sell')) {
+    const isAccountPositionRow =
+      row.reportKind === 'account_activity' && row.kind === 'position'
+
+    if (
+      !row.symbol ||
+      (row.kind !== 'buy' && row.kind !== 'sell' && !isAccountPositionRow)
+    ) {
       continue
     }
 
@@ -354,14 +360,14 @@ function deriveLedgerHoldings(
 
     if (row.quantity === null) {
       bucket.hasMissingShares = true
-    } else if (row.kind === 'buy') {
+    } else if (row.kind === 'buy' || isAccountPositionRow) {
       bucket.buyQuantity += row.quantity
     } else {
       bucket.sellQuantity += row.quantity
     }
 
-    if (row.kind === 'buy') {
-      const basis = getBuyCostBasis(row)
+    if (row.kind === 'buy' || isAccountPositionRow) {
+      const basis = isAccountPositionRow ? row.costBasis : getBuyCostBasis(row)
 
       if (basis === null) {
         bucket.hasMissingBuyBasis = true
@@ -402,6 +408,9 @@ function deriveLedgerHoldings(
       'Derived from accepted account activity buys/sells.',
       bucket.sellQuantity > 0
         ? 'Accepted realized gain/loss sells are preferred over matching account activity sells.'
+        : '',
+      bucket.hasMissingBuyBasis && bucket.buyQuantity > 0
+        ? 'Accepted account activity share adjustments can provide shares, but not missing basis.'
         : '',
       missingBasis
         ? 'Some buy or sell basis is missing; average cost stays blank.'

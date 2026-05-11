@@ -2544,6 +2544,8 @@ function getRobinhoodKindLabel(kind: RobinhoodNormalizedRow['kind']): string {
       return 'Sell'
     case 'position':
       return 'Position'
+    case 'corporate_action':
+      return 'Corporate action'
     case 'dividend':
       return 'Dividend'
     case 'interest':

@@ -89,6 +89,86 @@ describe('Robinhood CSV import and reconciliation', () => {
     })
   })
 
+  it('skips Robinhood account CSV footer disclaimers instead of importing blank unsupported rows', () => {
+    const result = parseRobinhoodCsvFile({
+      fileName: 'account-activity.csv',
+      importedAt: IMPORTED_AT,
+      reportKind: 'account_activity',
+      text: [
+        '"Activity Date","Process Date","Settle Date","Instrument","Description","Trans Code","Quantity","Price","Amount"',
+        '"05/08/2026","05/08/2026","05/11/2026","HIMS","Hims & Hers Health',
+        'CUSIP: 433000106","Buy","25","$27.34","($683.50)"',
+        '""',
+        '"","","","","","","","","","The data provided is for informational purposes only. Please consult a professional tax service."',
+      ].join('\n'),
+    })
+
+    expect(result.errors).toEqual([])
+    expect(result.batch).toMatchObject({ rowCount: 1 })
+    expect(result.rows).toHaveLength(1)
+    expect(result.rows[0]).toMatchObject({
+      amount: -683.5,
+      kind: 'buy',
+      price: 27.34,
+      quantity: 25,
+      symbol: 'HIMS',
+    })
+  })
+
+  it('captures Robinhood corporate-action share rows without inventing basis', () => {
+    const result = parseRobinhoodCsvFile({
+      fileName: 'account-activity.csv',
+      importedAt: IMPORTED_AT,
+      reportKind: 'account_activity',
+      text: [
+        '"Activity Date","Process Date","Settle Date","Instrument","Description","Trans Code","Quantity","Price","Amount"',
+        '"11/12/2018","11/12/2018","11/12/2018","AAPL","Apple',
+        'CUSIP: 037833100","CONV","4","",""',
+        '"8/31/2020","8/31/2020","8/31/2020","AAPL","Apple',
+        'CUSIP: 037833100","SPL","15","",""',
+        '"6/22/2020","6/22/2020","6/22/2020","HLX","Helix Energy',
+        'CUSIP: 42330P107","REC","1","",""',
+        '"5/5/2022","5/5/2022","5/5/2022","DKNG","Draftkings',
+        'CUSIP: 26142R104","SXCH","10.0181S","",""',
+        '"11/12/2018","11/12/2018","11/12/2018","","Apex to RHS Conversion","CONV","","","$0.07"',
+      ].join('\n'),
+    })
+
+    expect(result.errors).toEqual([])
+    expect(result.rows.map((row) => row.kind)).toEqual([
+      'position',
+      'position',
+      'position',
+      'corporate_action',
+      'transfer',
+    ])
+    expect(result.rows[0]).toMatchObject({
+      quantity: 4,
+      reconciliationStatus: 'missing_basis',
+      symbol: 'AAPL',
+    })
+    expect(result.rows[1]).toMatchObject({
+      quantity: 15,
+      reconciliationStatus: 'missing_basis',
+      symbol: 'AAPL',
+    })
+    expect(result.rows[2]).toMatchObject({
+      quantity: 1,
+      reconciliationStatus: 'missing_basis',
+      symbol: 'HLX',
+    })
+    expect(result.rows[3]).toMatchObject({
+      quantity: 10.0181,
+      reconciliationStatus: 'needs_review',
+      symbol: 'DKNG',
+    })
+    expect(result.rows[4]).toMatchObject({
+      amount: 0.07,
+      kind: 'transfer',
+      symbol: '',
+    })
+  })
+
   it('parses realized gain/loss CSV rows with basis, P/L, term, and wash-sale fields', () => {
     const csv = [
       'Symbol,Date Acquired,Date Sold,Quantity,Proceeds,Cost Basis,Realized Gain/Loss,Term,Wash Sale Loss Disallowed',

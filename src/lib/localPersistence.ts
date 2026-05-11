@@ -232,6 +232,7 @@ const ROBINHOOD_ROW_KINDS = new Set<RobinhoodNormalizedKind>([
   'buy',
   'sell',
   'position',
+  'corporate_action',
   'dividend',
   'interest',
   'transfer',

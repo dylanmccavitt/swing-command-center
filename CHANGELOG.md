@@ -7,6 +7,9 @@
   and accepted-row, per-symbol, or apply-all updates to local holdings.
 - Added stable Robinhood CSV row fingerprints so newer full-history exports
   dedupe old rows and preserve prior row decisions.
+- Improved Robinhood account-activity parsing for real export footers,
+  conversion/split/received-share rows, security-exchange rows, and cash amount
+  display across buys, dividends, fees, interest, and transfers.
 - Hardened Robinhood CSV parsing for account-activity and realized gain/loss
   header variants, including sale proceeds, adjusted basis, quantity sold,
   disposed date, net cash amount, security description, and disallowed loss

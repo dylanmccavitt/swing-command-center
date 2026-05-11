@@ -74,7 +74,8 @@ export function RowReviewModal(props: {
           <KV label="status" value={getRobinhoodReconciliationLabel(row.reconciliationStatus)} />
           <KV label="trade date" value={row.tradeDate ?? 'missing'} />
           <KV label="quantity" value={row.quantity ?? 'missing'} />
-          <KV label="proceeds" value={formatMaybeCurrency(row.proceeds)} />
+          <KV label="cash amount" value={formatMaybeCurrency(row.amount)} />
+          <KV label="proceeds" value={formatMaybeProceeds(row)} />
           <KV label="average cost" value={formatMaybeCurrency(row.averageCost)} />
           <KV label="basis" value={formatMaybeCurrency(row.costBasis)} />
           <KV
@@ -138,4 +139,8 @@ function formatMaybeCurrency(value: number | null): string {
 
 function formatMaybeSignedCurrency(value: number | null): string {
   return value === null ? 'missing' : formatSignedCurrency(value)
+}
+
+function formatMaybeProceeds(row: RobinhoodNormalizedRow): string {
+  return row.kind === 'sell' ? formatMaybeCurrency(row.proceeds) : 'n/a'
 }

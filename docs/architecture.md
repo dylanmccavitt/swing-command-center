@@ -61,7 +61,8 @@ AI-drafted / Needs review.
 - `src/lib/robinhoodCsv.ts`: file-only Robinhood account activity, current
   positions, and realized gain/loss CSV parser, stable row fingerprinting,
   import dedupe, row normalizer, reconciliation statuses, accepted-row
-  sell-fill mapper, tax-planning buckets, and import-aware planning export.
+  sell-fill mapper, corporate-action capture, footer filtering, tax-planning
+  buckets, and import-aware planning export.
 - `src/lib/robinhoodHoldingsSync.ts`: accepted-row holdings derivation layer
   that projects current positions from position CSV rows or sufficient
   buy/sell ledger rows, keeps missing basis explicit, and syncs eligible
@@ -197,10 +198,12 @@ AI-drafted / Needs review.
     and reviewed sells only.
 16. The user can import official Robinhood account activity CSV files, current
     positions CSV files, and realized gain/loss CSV files. Imported rows
-    normalize to buys, sells, positions, dividends, interest, transfers, fees,
-    or unknown rows with stable fingerprints, dedupe across full-history
-    re-imports, and reconciliation states such as matched, needs review,
-    missing basis, missing proceeds, possible wash sale, and unsupported row.
+    normalize to buys, sells, positions, corporate actions, dividends,
+    interest, transfers, fees, or unknown rows with stable fingerprints, dedupe
+    across full-history re-imports, and reconciliation states such as matched,
+    needs review, missing basis, missing proceeds, possible wash sale, and
+    unsupported row. Footer/disclaimer rows with no mapped activity fields are
+    ignored.
 17. Robinhood imported rows must be accepted before they affect buying power,
     pay-yourself, reinvest cash, or holdings/lots sync. Accepting an eligible
     buy or position row syncs the affected open symbol into local holdings and
@@ -210,7 +213,10 @@ AI-drafted / Needs review.
     proceeds, basis, realized P/L, holding period, and wash-sale fields.
 18. Robinhood holdings sync derives per-symbol positions from accepted current
     positions CSV rows first, then from sufficient accepted account-activity
-    buy/sell ledgers. The Import view compares the current app lot against the
+    buy/sell ledgers and accepted account-activity share adjustments such as
+    conversions, stock splits, or received shares. Security-exchange corporate
+    action rows are captured for review but do not change holdings by
+    themselves. The Import view compares the current app lot against the
     CSV-derived lot and lets the user reject, apply one symbol, or apply all
     reviewed symbols. Row acceptance also applies the affected eligible symbol
     immediately. Missing share counts and closed projections block applying;

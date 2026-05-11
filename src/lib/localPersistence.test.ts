@@ -279,6 +279,40 @@ describe('local Swing state persistence', () => {
       source: 'current_positions_csv',
     })
   })
+
+  it('round-trips captured Robinhood corporate-action rows', () => {
+    const parsed = parseRobinhoodCsvFile({
+      fileName: 'account-activity.csv',
+      importedAt: SAVED_AT,
+      reportKind: 'account_activity',
+      text: [
+        '"Activity Date","Process Date","Settle Date","Instrument","Description","Trans Code","Quantity","Price","Amount"',
+        '"05/05/2022","05/05/2022","05/05/2022","DKNG","Draftkings',
+        'CUSIP: 26142R104","SXCH","10.0181S","",""',
+      ].join('\n'),
+    })
+    const state = buildLocalState({
+      robinhoodImports: parsed.batch ? [parsed.batch] : [],
+      robinhoodRows: parsed.rows,
+    })
+    const result = parseSwingLocalStateSnapshot(
+      serializeSwingLocalState(buildSwingLocalStateSnapshot(state, SAVED_AT)),
+      buildLocalState(),
+    )
+
+    expect(result.ok).toBe(true)
+
+    if (!result.ok) {
+      return
+    }
+
+    expect(result.snapshot.state.robinhoodRows[0]).toMatchObject({
+      kind: 'corporate_action',
+      quantity: 10.0181,
+      reconciliationStatus: 'needs_review',
+      symbol: 'DKNG',
+    })
+  })
 })
 
 function buildLocalState(
