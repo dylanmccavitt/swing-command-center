@@ -10,6 +10,11 @@ import {
   Sparkbar,
   Stat,
 } from '../components/primitives'
+import {
+  ACTION_DESK_DISCLOSURE,
+  type ActionDeskItem,
+} from '../lib/actionDesk'
+import type { ViewKey } from '../hooks/useViewSwitcher'
 import type { CommandCenterState } from '../state/useCommandCenterState'
 import {
   formatCurrency,
@@ -18,10 +23,14 @@ import {
   formatSignedPercent,
 } from '../state/useCommandCenterState'
 
-export function Cockpit(props: { state: CommandCenterState }) {
+export function Cockpit(props: {
+  state: CommandCenterState
+  onView: (view: ViewKey) => void
+}) {
   const { state } = props
   const modeledMeta = `${state.portfolioModel.completePositionCount}/${state.summary.totalSymbols} modeled · ${state.portfolioModel.manualLotsNeeded} need lots`
   const scenarioMeta = `${state.topProfitLockScenarios.length} ready · ${state.movementRows.length} symbols`
+  const actionMeta = `${state.actionDesk.items.length} next · ${state.actionDesk.readyCount} ready`
   const concentrationSub = `${state.concentrationSummary.atRiskCount} positions >= ${state.portfolioModel.settings.maxPositionWeightPercent}% hard cap`
   const concentrationTone =
     state.concentrationSummary.state === 'over_cap'
@@ -43,6 +52,25 @@ export function Cockpit(props: { state: CommandCenterState }) {
     if (scenario.title.includes('Trim to')) return 'reduce to concentration cap'
     if (scenario.title.includes('Recover cost basis')) return 'raise cash to original basis'
     return scenario.description
+  }
+  const runAction = (item: ActionDeskItem) => {
+    if (item.symbol && item.targetView === 'planner') {
+      state.actions.selectPlannerSymbol(item.symbol)
+    }
+
+    if (item.symbol && item.targetView === 'research') {
+      state.actions.setSelectedResearchSymbol(item.symbol)
+    }
+
+    if (item.primaryAction === 'queue_research' && item.symbol) {
+      const card = state.researchCards.find((candidate) => candidate.symbol === item.symbol)
+
+      if (card) {
+        state.actions.queueCodexResearchRequest(card)
+      }
+    }
+
+    props.onView(item.targetView)
   }
 
   return (
@@ -101,6 +129,56 @@ export function Cockpit(props: { state: CommandCenterState }) {
           value={state.concentrationSummary.state === 'over_cap' ? 'Over cap' : state.concentrationSummary.label}
         />
       </div>
+
+      <SectionDivider label="decision desk" meta={actionMeta} />
+      <Panel>
+        <PanelHead
+          kicker="next actions"
+          title="What needs attention"
+          pill={state.actionDesk.topPriorityLabel}
+        />
+        <div className="action-desk">
+          {state.actionDesk.items.length === 0 ? (
+            <div className="empty-state">
+              <strong>No immediate actions</strong>
+              <span>
+                Holdings, cash planning, and research queue do not have a
+                current blocker.
+              </span>
+            </div>
+          ) : (
+            state.actionDesk.items.map((item, index) => (
+              <div className="action-item" key={item.id}>
+                <div className="action-rank">
+                  {String(index + 1).padStart(2, '0')}
+                </div>
+                <div className="action-copy">
+                  <div className="action-title">
+                    <span className={`card-status ${getActionToneClass(item)}`}>
+                      {getActionTypeLabel(item)}
+                    </span>
+                    <strong>{item.title}</strong>
+                  </div>
+                  <p>{item.detail}</p>
+                </div>
+                <div className="action-meta">
+                  {item.valueLabel ? (
+                    <span className="price">{item.valueLabel}</span>
+                  ) : null}
+                  <button
+                    className={item.primaryAction === 'queue_research' ? 'btn primary' : 'btn'}
+                    type="button"
+                    onClick={() => runAction(item)}
+                  >
+                    {item.primaryLabel}
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+        <Hint>{ACTION_DESK_DISCLOSURE}</Hint>
+      </Panel>
 
       <SectionDivider label="scenarios · allocation · watchlist" meta={scenarioMeta} />
       <div className="split-3">
@@ -226,4 +304,35 @@ export function Cockpit(props: { state: CommandCenterState }) {
       </div>
     </section>
   )
+}
+
+function getActionToneClass(item: ActionDeskItem): string {
+  if (item.tone === 'pos') {
+    return 'exec'
+  }
+
+  if (item.tone === 'warn') {
+    return 'ready'
+  }
+
+  return 'draft'
+}
+
+function getActionTypeLabel(item: ActionDeskItem): string {
+  switch (item.type) {
+    case 'basis_fix':
+      return 'basis'
+    case 'cash_redeploy':
+      return 'cash'
+    case 'holding_setup':
+      return 'holding'
+    case 'research_import':
+      return 'import'
+    case 'research_queue':
+      return 'codex'
+    case 'research_review':
+      return 'review'
+    case 'risk_trim':
+      return 'risk'
+  }
 }

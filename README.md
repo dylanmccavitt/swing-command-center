@@ -15,6 +15,8 @@ It helps me:
 - plan where realized profit could go after reserve and paying myself
 - queue stock research prompts for Codex or ChatGPT, then import reviewed
   research notes back into the dashboard
+- see a first-screen decision desk that points me to missing lot data, missing
+  sell basis, cash planning, risk-trim review, and Codex research follow-up
 
 It does not connect to Robinhood, store broker credentials, place orders,
 automate trading, or provide tax advice. Everything is for manual planning and
@@ -63,7 +65,7 @@ Do not commit `.env.local`.
 ## How I Use It
 
 1. Start in Cockpit to review portfolio value, unrealized P/L, cash runway,
-   concentration, watchlist movement, and manual tickets.
+   concentration, the decision desk, watchlist movement, and manual tickets.
 2. Use Research to track AI-stack names or general tickers, review live quotes,
    move through source-backed cards, filter candidates, and use the Codex queue.
 3. Use Planner to enter holdings/lots, draft target/stop scenarios, and convert

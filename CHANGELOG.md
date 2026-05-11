@@ -21,6 +21,9 @@
   target, review date, source notes, and imported source metadata surfaces.
 - Updated Codex worker and research queue docs so manual workers can produce
   importable JSON without API keys, brokerage access, or buy/sell instructions.
+- Added a first-screen decision desk that ranks missing lot data, missing sell
+  basis, cash redeploy planning, concentration trim review, and Codex research
+  queue/import/review work from the saved local cockpit state.
 
 ## 2026-05-09
 

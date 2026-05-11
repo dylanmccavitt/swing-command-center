@@ -8,7 +8,8 @@ user-added holdings, accepts manual local lot inputs in the browser, persists
 typed user-entered cockpit state to versioned local browser storage,
 polls a replaceable market-data provider for holdings and research watchlist
 symbols, turns complete positions into concentration status, chart rows, and
-manual profit-lock scenario tickets, and keeps an editable research watchlist
+manual profit-lock scenario tickets, ranks the next manual actions in a
+first-screen decision desk, and keeps an editable research watchlist
 with AI-stack lanes plus a General watchlist lane for thesis-first trade setup
 tracking. A target/stop scenario planner
 combines selected holdings or research cards with editable price, risk, trim,
@@ -64,6 +65,9 @@ AI-drafted / Needs review.
 - `src/lib/cockpit.ts`: first-screen derived summaries, top profit-lock
   scenario ranking, allocation/gain/concentration chart rows, and symbol color
   mapping.
+- `src/lib/actionDesk.ts`: typed first-screen action queue that combines
+  missing lot inputs, missing sell basis, filled-sell buying power, risk-trim
+  scenarios, and Codex research queue state into manual next-step rows.
 - `src/lib/researchWatchlist.ts`: manual research-card grouping, checklist
   scoring, and filtering helpers. Scores are field-completeness checks, not
   expected-return or recommendation scores.
@@ -160,59 +164,62 @@ AI-drafted / Needs review.
 8. Cockpit helpers rank ready manual profit-lock scenarios across complete
    positions and summarize concentration and cash/runway status for the first
    screen.
-9. Chart components render allocation, gains by holding, concentration, and
+9. Action-desk helpers rank the immediate manual next steps: add missing lots,
+   fix missing sell basis, review concentration trims, plan redeployable cash,
+   queue Codex research, import result JSON, or review drafted source notes.
+10. Chart components render allocation, gains by holding, concentration, and
    session price/watchlist movement from typed derived rows.
-10. Profit-lock helpers turn a complete selected position into scenario tickets
+11. Profit-lock helpers turn a complete selected position into scenario tickets
    for target-weight trims, gain locks, cost-basis recovery, and cash raising.
-11. Target/stop scenario helpers turn the selected current holding or research
+12. Target/stop scenario helpers turn the selected current holding or research
    card plus editable inputs into planned entry, stop, stop-limit buffer, first
    target, stretch target, trim, proceeds, gain/loss, and remaining-position
    outputs with explicit reasons and guardrails.
-12. Trade-journal helpers convert selected profit-lock scenarios and trade
+13. Trade-journal helpers convert selected profit-lock scenarios and trade
     setups into manual checklist tickets with symbol, action, estimated shares,
     estimated cash raised or spent, estimated realized gain, tax reserve,
     reason, invalidation, and checklist copy.
-13. The user can add local journal entries for planned, executed, mistake, and
+14. The user can add local journal entries for planned, executed, mistake, and
     result states; edit notes and legacy review fields; and keep checklist
     context separate from actual filled-sell math.
-14. The user can add manual sell fills, mark sells planned/ordered/filled/
+15. The user can add manual sell fills, mark sells planned/ordered/filled/
     canceled/reviewed, import local CSV/JSON sell records, enter starting cash
     and manually marked reinvested cash, then review buying power from filled
     and reviewed sells only.
-15. The user can import official Robinhood account activity CSV files and
+16. The user can import official Robinhood account activity CSV files and
     realized gain/loss CSV files. Imported rows normalize to buys, sells,
     dividends, interest, transfers, fees, or unknown rows with reconciliation
     states such as matched, needs review, missing basis, missing proceeds,
     possible wash sale, and unsupported row.
-16. Robinhood imported rows must be accepted before they affect buying power,
+17. Robinhood imported rows must be accepted before they affect buying power,
     pay-yourself, or reinvest cash. Accepted sell rows map into reviewed
     sell-fill records; matching realized gain/loss rows take precedence over
     account-activity sell rows for proceeds, basis, realized P/L, holding
     period, and wash-sale fields.
-17. Robinhood tax-planning buckets aggregate accepted short-term and long-term
+18. Robinhood tax-planning buckets aggregate accepted short-term and long-term
     realized gain/loss, wash-sale disallowed losses, dividends/interest,
     reserve estimate, pay-yourself set-aside, and remaining reinvestable cash.
-18. Reinvest-cash planning uses remaining filled-sell buying power after reserve,
+19. Reinvest-cash planning uses remaining filled-sell buying power after reserve,
     pay-yourself, and manually marked reinvestments, then lists current holdings,
     watchlist/research ideas, and cash as manual places to review.
-19. Research watchlist helpers group current holdings and placeholder candidates
+20. Research watchlist helpers group current holdings and placeholder candidates
     by research lane, including the General watchlist lane, calculate manual
     checklist completeness, and filter the candidate list by layer, score,
     holding status, and missing inputs.
-20. The user can run research for the selected symbol or selected layer. The
+21. The user can run research for the selected symbol or selected layer. The
     research provider returns recent-news, investor, filing, earnings, and
     sector-context source metadata; the app drafts thesis, catalyst,
     invalidation, risk notes, review date, and source notes into the editable
     card.
-21. The user can queue a Codex research request for the selected symbol. The app
+22. The user can queue a Codex research request for the selected symbol. The app
     creates a structured daily research desk request JSON for manual worker
     processing, including source and import checklists for any ticker, then can
     import a local result JSON only after schema, symbol/request, source
     metadata, and non-recommendation validation pass.
-22. On each accepted local state change, the persistence boundary writes a
+23. On each accepted local state change, the persistence boundary writes a
     versioned snapshot. The settings panel exposes a deliberate reset action
     that clears saved browser state and reloads seed defaults.
-23. Tests verify that holding summaries follow the current user-provided list,
+24. Tests verify that holding summaries follow the current user-provided list,
     do not invent lot data, and that portfolio/profit-lock/cockpit math remains
     stable. Research-provider tests cover source metadata, stale/empty states,
     draft normalization, and non-recommendation copy. Codex queue tests cover
@@ -228,7 +235,9 @@ AI-drafted / Needs review.
     normalization, sell-fill mapping, reconciliation statuses, review/accept
     gating, tax-planning buckets, import-aware export shape, and non-automation
     / non-tax-advice copy. Profit-cash tests cover filled-sell buying-power
-    routing, candidate rows, and manual non-advisory copy.
+    routing, candidate rows, and manual non-advisory copy. Action-desk tests
+    cover missing-basis priority, cash redeploy routing, holding setup, risk
+    trim review, and Codex research queue/import next steps.
 
 ## Important Invariants
 
@@ -268,6 +277,9 @@ AI-drafted / Needs review.
 - Reinvest-cash planning must remain a manual review list. It may show current
   holdings, watchlist cards, research completeness, estimated shares, and cash
   as a place to hold funds, but it must not recommend or execute buys/sells.
+- Action-desk rows must route the user to existing manual workflows. They may
+  prioritize missing data, research, import, cash, and planning work, but must
+  not become recommendations, trade signals, brokerage actions, or tax advice.
 - Tax-helper exports are planning review JSON only, not filing documents or tax
   advice.
 - AI-stack research layers are hyperscalers, GPU/chip designers, foundries,

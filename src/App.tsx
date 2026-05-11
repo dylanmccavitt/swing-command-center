@@ -60,7 +60,9 @@ function App() {
               </span>
             </div>
           ) : null}
-          {view === 'cockpit' ? <Cockpit state={state} /> : null}
+          {view === 'cockpit' ? (
+            <Cockpit state={state} onView={switchView} />
+          ) : null}
           {view === 'research' ? <Research state={state} /> : null}
           {view === 'planner' ? <Planner state={state} /> : null}
           {view === 'journal' ? <Journal state={state} /> : null}

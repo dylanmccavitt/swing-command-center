@@ -22,6 +22,7 @@ import {
   summarizeCashRunway,
   summarizeConcentrationRisk,
 } from '../lib/cockpit'
+import { buildActionDesk } from '../lib/actionDesk'
 import {
   createMarketDataProviderFromEnv,
   describeQuoteFreshness,
@@ -719,6 +720,29 @@ export function useCommandCenterState() {
       buyingPowerSummary,
       realizedProfitSummary,
       researchScores,
+    ],
+  )
+  const actionDesk = useMemo(
+    () =>
+      buildActionDesk({
+        buyingPower: buyingPowerSummary,
+        codexQueue,
+        positions: portfolioModel.positions,
+        profitCashPlan,
+        researchCards,
+        researchRuns,
+        researchScores,
+        topProfitLockScenarios,
+      }),
+    [
+      buyingPowerSummary,
+      codexQueue,
+      portfolioModel.positions,
+      profitCashPlan,
+      researchCards,
+      researchRuns,
+      researchScores,
+      topProfitLockScenarios,
     ],
   )
   const concentrationSummary = useMemo(
@@ -1526,6 +1550,7 @@ export function useCommandCenterState() {
 
   return {
     acceptedRobinhoodSellFills,
+    actionDesk,
     allocationRows,
     buyingPowerForm,
     buyingPowerRecords,
