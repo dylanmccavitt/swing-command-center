@@ -5,10 +5,11 @@ import type {
 } from '../../lib/robinhoodCsv'
 import {
   formatCurrency,
+  formatSignedCurrency,
   getRobinhoodKindLabel,
   getRobinhoodReconciliationLabel,
 } from '../../state/useCommandCenterState'
-import { KV } from '../primitives'
+import { Hint, KV } from '../primitives'
 
 export function RowReviewModal(props: {
   row: RobinhoodNormalizedRow | null
@@ -39,6 +40,10 @@ export function RowReviewModal(props: {
   }
 
   const { row } = props
+  const isProceedsOnlySell =
+    row.kind === 'sell' &&
+    row.proceeds !== null &&
+    row.realizedGainLoss === null
 
   return (
     <div
@@ -71,7 +76,28 @@ export function RowReviewModal(props: {
           <KV label="quantity" value={row.quantity ?? 'missing'} />
           <KV label="proceeds" value={formatMaybeCurrency(row.proceeds)} />
           <KV label="basis" value={formatMaybeCurrency(row.costBasis)} />
-          <KV label="realized" value={formatMaybeCurrency(row.realizedGainLoss)} />
+          <KV
+            label="recognized realized P/L"
+            value={formatMaybeSignedCurrency(row.realizedGainLoss)}
+          />
+          <KV
+            label="wash sale"
+            value={formatMaybeCurrency(row.washSaleLossDisallowed)}
+          />
+          {isProceedsOnlySell ? (
+            <Hint variant="warn">
+              Accepting this row can count the proceeds for buying power, but
+              realized P/L, reserve, and pay-myself stay $0 until basis is
+              imported or manually reviewed.
+            </Hint>
+          ) : null}
+          {row.reportKind === 'realized_gain_loss' &&
+          row.realizedGainLoss !== null ? (
+            <Hint>
+              Realized gain/loss CSV values provide recognized realized P/L and
+              take precedence over matching account-activity proceeds.
+            </Hint>
+          ) : null}
           <div className="dash-rule" />
           <div className="muted small">
             {row.description || Object.values(row.raw).filter(Boolean).join(' · ')}
@@ -107,4 +133,8 @@ export function RowReviewModal(props: {
 
 function formatMaybeCurrency(value: number | null): string {
   return value === null ? 'missing' : formatCurrency(value)
+}
+
+function formatMaybeSignedCurrency(value: number | null): string {
+  return value === null ? 'missing' : formatSignedCurrency(value)
 }
