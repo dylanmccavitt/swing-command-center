@@ -80,6 +80,7 @@ export function Import(props: { state: CommandCenterState }) {
   const unmapped = rows.filter(
     (row) => row.reconciliationStatus === 'unsupported_row',
   ).length
+  const dateRangeLabel = getRobinhoodImportDateRangeLabel(rows)
   const derivedHoldings = props.state.robinhoodDerivedHoldings
   const pendingHoldingUpdates = derivedHoldings.filter(
     (holding) =>
@@ -155,10 +156,12 @@ export function Import(props: { state: CommandCenterState }) {
           <PanelHead
             kicker="csv preview"
             title={isFixture ? 'Robinhood fixture preview' : 'Robinhood activity'}
-            pill={`${rows.length} rows · ${unmapped} unmapped`}
+            pill={`${rows.length} rows${
+              dateRangeLabel ? ` · ${dateRangeLabel}` : ''
+            } · ${unmapped} unmapped`}
           />
           <Ledger
-            columns="80px 1fr 70px 85px 95px 95px 82px"
+            columns="96px 1fr 70px 85px 95px 95px 82px"
             headers={[
               'date',
               'desc',
@@ -168,11 +171,11 @@ export function Import(props: { state: CommandCenterState }) {
               <div className="num" key="realized">realized</div>,
               <div className="num" key="type">type</div>,
             ]}
-            rows={rows.slice(0, 12).map((row) => ({
+            rows={rows.map((row) => ({
               id: row.id,
               cells: [
                 <div className="mono small muted" key="date">
-                  {row.tradeDate?.slice(5) ?? '--'}
+                  {row.tradeDate ?? '--'}
                 </div>,
                 <button
                   className="tag"
@@ -395,6 +398,24 @@ function CsvButton(props: {
       />
     </label>
   )
+}
+
+function getRobinhoodImportDateRangeLabel(
+  rows: readonly RobinhoodNormalizedRow[],
+): string {
+  const dates = rows
+    .map((row) => row.tradeDate)
+    .filter((date): date is string => Boolean(date))
+
+  if (dates.length === 0) {
+    return ''
+  }
+
+  const sortedDates = [...dates].sort()
+  const firstDate = sortedDates[0]
+  const lastDate = sortedDates[sortedDates.length - 1]
+
+  return firstDate === lastDate ? firstDate : `${firstDate} to ${lastDate}`
 }
 
 function buildHoldingReviewRow(
