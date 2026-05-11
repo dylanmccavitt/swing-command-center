@@ -13,6 +13,7 @@ It helps me:
 - journal planned trades, executed trades, mistakes, results, realized P/L, and
   tax notes
 - plan where realized profit could go after reserve and paying myself
+- import reviewed Robinhood CSV exports to update holdings and lots locally
 - queue stock research prompts for Codex or ChatGPT, then import reviewed
   research notes back into the dashboard
 - see a first-screen decision desk that points me to missing lot data, missing
@@ -75,9 +76,11 @@ Do not commit `.env.local`.
 5. Use Cash plan to review realized profit, reserve, pay-myself, and redeploy
    distribution.
 6. Use Import to preview Robinhood CSV rows, accept or reject matches, reconcile
-   totals, and apply accepted sell fills. Account activity CSVs can prove cash
-   proceeds; realized gain/loss CSVs or manual basis are needed before reserve
-   and pay-myself estimates are meaningful.
+   totals, review derived holdings, and apply accepted holdings/lots or sell
+   fills. Current positions CSVs can update shares and basis after review.
+   Account activity CSVs can prove cash proceeds or derive ledger positions
+   when enough data is present; realized gain/loss CSVs or manual basis are
+   needed before reserve and pay-myself estimates are meaningful.
 7. Export journal data when I want a tax review summary.
 
 ## Checks

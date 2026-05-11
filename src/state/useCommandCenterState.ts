@@ -73,6 +73,7 @@ import {
   buildRobinhoodPlanningExport,
   buildRobinhoodTaxPlanningBuckets,
   buildSellFillsFromAcceptedRobinhoodRows,
+  mergeRobinhoodCsvImportResult,
   parseRobinhoodCsvFile,
   updateRobinhoodRowReviewState,
 } from '../lib/robinhoodCsv'
@@ -82,6 +83,14 @@ import type {
   RobinhoodNormalizedRow,
   RobinhoodReviewState,
 } from '../lib/robinhoodCsv'
+import {
+  applyRobinhoodDerivedHolding,
+  buildRobinhoodHoldingsReviewEntry,
+  deriveRobinhoodHoldings,
+  getRobinhoodHoldingsReviewDecision,
+  type RobinhoodDerivedHolding,
+  type RobinhoodHoldingsReviewMap,
+} from '../lib/robinhoodHoldingsSync'
 import {
   buildJournalEntryFromTicket,
   buildManualJournalEntry,
@@ -401,6 +410,10 @@ export function useCommandCenterState() {
   const [robinhoodRows, setRobinhoodRows] = useState<RobinhoodNormalizedRow[]>(
     () => clonePlain(initialLocalState.robinhoodRows),
   )
+  const [robinhoodHoldingsReview, setRobinhoodHoldingsReview] =
+    useState<RobinhoodHoldingsReviewMap>(() =>
+      clonePlain(initialLocalState.robinhoodHoldingsReview),
+    )
   const [robinhoodImportMessage, setRobinhoodImportMessage] = useState('')
   const [buyingPowerForm, setBuyingPowerForm] =
     useState<BuyingPowerForm>(() => ({ ...initialLocalState.buyingPowerForm }))
@@ -420,6 +433,7 @@ export function useCommandCenterState() {
       sellFills,
       robinhoodImports,
       robinhoodRows,
+      robinhoodHoldingsReview,
       buyingPowerForm,
     }),
     [
@@ -431,6 +445,7 @@ export function useCommandCenterState() {
       payYourselfForm,
       researchCards,
       researchFilters,
+      robinhoodHoldingsReview,
       robinhoodImports,
       robinhoodRows,
       scenarioPlannerForms,
@@ -704,6 +719,14 @@ export function useCommandCenterState() {
         payYourselfRule,
       }),
     [buyingPowerSummary, payYourselfRule, portfolioModel.settings, robinhoodRows],
+  )
+  const robinhoodDerivedHoldings = useMemo(
+    () =>
+      deriveRobinhoodHoldings({
+        imports: robinhoodImports,
+        rows: robinhoodRows,
+      }),
+    [robinhoodImports, robinhoodRows],
   )
   const profitCashPlan = useMemo(
     () =>
@@ -1061,6 +1084,7 @@ export function useCommandCenterState() {
     setSellFillImportMessage('')
     setRobinhoodImports(clonePlain(nextState.robinhoodImports))
     setRobinhoodRows(clonePlain(nextState.robinhoodRows))
+    setRobinhoodHoldingsReview(clonePlain(nextState.robinhoodHoldingsReview))
     setRobinhoodImportMessage('')
     setBuyingPowerForm({ ...nextState.buyingPowerForm })
     setHoldingForm(DEFAULT_HOLDING_FORM)
@@ -1161,17 +1185,20 @@ export function useCommandCenterState() {
         importedAt: new Date().toISOString(),
         reportKind,
       })
-      const batch = result.batch
+      const merged = mergeRobinhoodCsvImportResult({
+        currentImports: robinhoodImports,
+        currentRows: robinhoodRows,
+        result,
+      })
 
-      if (batch) {
-        setRobinhoodImports((current) => [batch, ...current])
-      }
-
-      if (result.rows.length > 0) {
-        setRobinhoodRows((current) => [...result.rows, ...current])
-      }
-
-      setRobinhoodImportMessage(formatRobinhoodImportMessage(result))
+      setRobinhoodImports(merged.imports)
+      setRobinhoodRows(merged.rows)
+      setRobinhoodImportMessage(
+        formatRobinhoodImportMessage({
+          ...result,
+          duplicateRows: merged.duplicateRows.length,
+        }),
+      )
     } catch (error) {
       setRobinhoodImportMessage(
         getErrorMessage(error, 'Robinhood CSV file could not be read.'),
@@ -1188,9 +1215,172 @@ export function useCommandCenterState() {
     )
   }
 
+  function rejectRobinhoodDerivedHolding(holding: RobinhoodDerivedHolding) {
+    const updatedAt = new Date().toISOString()
+
+    setRobinhoodHoldingsReview((current) => ({
+      ...current,
+      [holding.symbol]: buildRobinhoodHoldingsReviewEntry({
+        holding,
+        decision: 'rejected',
+        updatedAt,
+      }),
+    }))
+    setRobinhoodImportMessage(
+      `${holding.symbol} holdings sync rejected. It will stay out of portfolio lots.`,
+    )
+  }
+
+  function applyRobinhoodDerivedHoldingSync(holding: RobinhoodDerivedHolding) {
+    if (
+      holding.shares === null ||
+      holding.status === 'missing_shares' ||
+      holding.status === 'closed'
+    ) {
+      setRobinhoodImportMessage(
+        `${holding.symbol} cannot update holdings because the imported position is not an open share count.`,
+      )
+      return
+    }
+
+    const applied = applyRobinhoodDerivedHolding({
+      holdings,
+      manualLots,
+      holding,
+    })
+    const updatedAt = new Date().toISOString()
+
+    setHoldings(applied.holdings)
+    setManualLots(applied.manualLots)
+    setResearchCards((current) => {
+      if (current.some((card) => card.symbol === holding.symbol)) {
+        return current.map((card) =>
+          card.symbol === holding.symbol
+            ? { ...card, seedType: 'current_holding' }
+            : card,
+        )
+      }
+
+      return [
+        ...current,
+        buildManualWatchlistCard({
+          symbol: holding.symbol,
+          name: holding.name,
+          stackLayer: 'general_watchlist',
+          seedType: 'current_holding',
+        }),
+      ]
+    })
+    setRobinhoodHoldingsReview((current) => ({
+      ...current,
+      [holding.symbol]: buildRobinhoodHoldingsReviewEntry({
+        holding,
+        decision: 'applied',
+        updatedAt,
+        appliedAt: updatedAt,
+      }),
+    }))
+    setSelectedPlannerSymbol(holding.symbol)
+    setSelectedResearchSymbol(holding.symbol)
+    setRobinhoodImportMessage(
+      holding.averageCost === null
+        ? `${holding.symbol} shares applied. Average cost stays blank because basis is missing.`
+        : `${holding.symbol} shares and average cost applied to holdings.`,
+    )
+  }
+
+  function applyAllRobinhoodDerivedHoldings() {
+    const holdingsToApply = robinhoodDerivedHoldings.filter((holding) => {
+      if (
+        holding.shares === null ||
+        holding.status === 'missing_shares' ||
+        holding.status === 'closed'
+      ) {
+        return false
+      }
+
+      return (
+        getRobinhoodHoldingsReviewDecision(
+          robinhoodHoldingsReview,
+          holding,
+        ) !== 'rejected'
+      )
+    })
+
+    if (holdingsToApply.length === 0) {
+      setRobinhoodImportMessage(
+        'No reviewed Robinhood holdings are ready to apply.',
+      )
+      return
+    }
+
+    const updatedAt = new Date().toISOString()
+    const appliedState = holdingsToApply.reduce(
+      (state, holding) =>
+        applyRobinhoodDerivedHolding({
+          holdings: state.holdings,
+          manualLots: state.manualLots,
+          holding,
+        }),
+      {
+        holdings,
+        manualLots,
+      },
+    )
+
+    setHoldings(appliedState.holdings)
+    setManualLots(appliedState.manualLots)
+    setResearchCards((current) => {
+      let next = current
+
+      for (const holding of holdingsToApply) {
+        if (next.some((card) => card.symbol === holding.symbol)) {
+          next = next.map((card) =>
+            card.symbol === holding.symbol
+              ? { ...card, seedType: 'current_holding' }
+              : card,
+          )
+          continue
+        }
+
+        next = [
+          ...next,
+          buildManualWatchlistCard({
+            symbol: holding.symbol,
+            name: holding.name,
+            stackLayer: 'general_watchlist',
+            seedType: 'current_holding',
+          }),
+        ]
+      }
+
+      return next
+    })
+    setRobinhoodHoldingsReview((current) => {
+      const next = { ...current }
+
+      for (const holding of holdingsToApply) {
+        next[holding.symbol] = buildRobinhoodHoldingsReviewEntry({
+          holding,
+          decision: 'applied',
+          updatedAt,
+          appliedAt: updatedAt,
+        })
+      }
+
+      return next
+    })
+    setRobinhoodImportMessage(
+      `Applied ${holdingsToApply.length} reviewed Robinhood holding ${
+        holdingsToApply.length === 1 ? 'update' : 'updates'
+      } to portfolio lots.`,
+    )
+  }
+
   function clearRobinhoodImportRows() {
     setRobinhoodImports([])
     setRobinhoodRows([])
+    setRobinhoodHoldingsReview({})
     setRobinhoodImportMessage(
       'Cleared Robinhood CSV rows. Upload a fresh Robinhood export to rebuild the preview.',
     )
@@ -1593,6 +1783,8 @@ export function useCommandCenterState() {
     researchRuns,
     researchScoreBySymbol,
     researchScores,
+    robinhoodDerivedHoldings,
+    robinhoodHoldingsReview,
     robinhoodImportMessage,
     robinhoodImports,
     robinhoodRows,
@@ -1626,7 +1818,9 @@ export function useCommandCenterState() {
       addManualMistakeEntry,
       addResearchTicker,
       addSellFill,
+      applyAllRobinhoodDerivedHoldings,
       applyAcceptedRobinhoodRows,
+      applyRobinhoodDerivedHoldingSync,
       clearRobinhoodImportRows,
       exportTradeJournal,
       importCodexResearchResult,
@@ -1636,6 +1830,7 @@ export function useCommandCenterState() {
       markCodexResultMissing,
       markResearchReviewed,
       queueCodexResearchRequest,
+      rejectRobinhoodDerivedHolding,
       removeHolding,
       removeSellFill,
       resetLocalCockpitState,
@@ -1700,6 +1895,7 @@ function buildDefaultSwingLocalState(): SwingLocalState {
     sellFills: [],
     robinhoodImports: [],
     robinhoodRows: [],
+    robinhoodHoldingsReview: {},
     buyingPowerForm: { ...DEFAULT_BUYING_POWER_FORM },
   }
 }
@@ -2285,6 +2481,8 @@ function getRobinhoodReportKindLabel(kind: RobinhoodCsvReportKind): string {
   switch (kind) {
     case 'account_activity':
       return 'Account activity CSV'
+    case 'current_positions':
+      return 'Current positions CSV'
     case 'realized_gain_loss':
       return 'Realized gain/loss CSV'
   }
@@ -2296,6 +2494,8 @@ function getRobinhoodKindLabel(kind: RobinhoodNormalizedRow['kind']): string {
       return 'Buy'
     case 'sell':
       return 'Sell'
+    case 'position':
+      return 'Position'
     case 'dividend':
       return 'Dividend'
     case 'interest':
@@ -2386,12 +2586,20 @@ function formatRobinhoodImportMessage(result: {
   batch: RobinhoodImportBatch | null
   rows: readonly RobinhoodNormalizedRow[]
   errors: readonly string[]
+  duplicateRows?: number
 }): string {
+  const addedRows = Math.max(0, result.rows.length - (result.duplicateRows ?? 0))
   const importedCopy =
     result.batch && result.rows.length > 0
-      ? `Imported ${result.rows.length} ${getRobinhoodReportKindLabel(
+      ? `Imported ${addedRows} new ${getRobinhoodReportKindLabel(
           result.batch.reportKind,
-        ).toLowerCase()} rows from ${result.batch.fileName}. Review rows before accepting.`
+        ).toLowerCase()} rows from ${result.batch.fileName}. ${
+          result.duplicateRows
+            ? `${result.duplicateRows} duplicate full-history row${
+                result.duplicateRows === 1 ? '' : 's'
+              } skipped. `
+            : ''
+        }Review rows before accepting.`
       : 'No Robinhood rows imported.'
   const errorCopy =
     result.errors.length > 0 ? ` ${result.errors.join(' ')}` : ''

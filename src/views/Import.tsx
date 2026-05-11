@@ -1,12 +1,16 @@
 import { useMemo, useState } from 'react'
 import {
   buildSellFillsFromAcceptedRobinhoodRows,
-  parseRobinhoodCsvFile,
   ROBINHOOD_CSV_DISCLOSURE,
+  parseRobinhoodCsvFile,
   updateRobinhoodRowReviewState,
   type RobinhoodCsvReportKind,
   type RobinhoodNormalizedRow,
 } from '../lib/robinhoodCsv'
+import {
+  getRobinhoodHoldingsReviewDecision,
+  type RobinhoodDerivedHolding,
+} from '../lib/robinhoodHoldingsSync'
 import { SELL_FILL_DISCLOSURE } from '../lib/sellFills'
 import { RowReviewModal } from '../components/import/RowReviewModal'
 import {
@@ -76,6 +80,24 @@ export function Import(props: { state: CommandCenterState }) {
   const unmapped = rows.filter(
     (row) => row.reconciliationStatus === 'unsupported_row',
   ).length
+  const derivedHoldings = props.state.robinhoodDerivedHoldings
+  const pendingHoldingUpdates = derivedHoldings.filter(
+    (holding) =>
+      getRobinhoodHoldingsReviewDecision(
+        props.state.robinhoodHoldingsReview,
+        holding,
+      ) === 'needs_review',
+  )
+  const appliedHoldingUpdates = derivedHoldings.filter(
+    (holding) =>
+      getRobinhoodHoldingsReviewDecision(
+        props.state.robinhoodHoldingsReview,
+        holding,
+      ) === 'applied',
+  )
+  const missingBasisHoldings = derivedHoldings.filter(
+    (holding) => holding.status === 'missing_basis',
+  )
 
   function updateReview(rowId: string, state: RobinhoodNormalizedRow['reviewState']) {
     if (isFixture) {
@@ -113,6 +135,11 @@ export function Import(props: { state: CommandCenterState }) {
           <CsvButton
             label="Account CSV"
             reportKind="account_activity"
+            onFile={props.state.actions.importRobinhoodCsvFile}
+          />
+          <CsvButton
+            label="Positions CSV"
+            reportKind="current_positions"
             onFile={props.state.actions.importRobinhoodCsvFile}
           />
           <CsvButton
@@ -258,6 +285,53 @@ export function Import(props: { state: CommandCenterState }) {
         </Panel>
       </div>
 
+      <Panel>
+        <PanelHead
+          kicker="holdings sync"
+          title="Review holdings changes"
+          pill={`${pendingHoldingUpdates.length} pending · ${appliedHoldingUpdates.length} applied`}
+        />
+        <div className="split-2 compact">
+          <div>
+            <KV label="derived holdings" value={derivedHoldings.length} />
+            <KV label="missing basis" value={missingBasisHoldings.length} />
+          </div>
+          <div>
+            <Hint>
+              Holdings sync uses accepted local CSV rows only. It does not log
+              in, scrape, store credentials, execute orders, automate trading,
+              or provide tax advice.
+            </Hint>
+          </div>
+        </div>
+        <Ledger
+          columns="80px 120px 110px 110px 110px 110px 100px 170px"
+          headers={[
+            'symbol',
+            'source',
+            <div className="num" key="current-shares">current sh</div>,
+            <div className="num" key="csv-shares">csv sh</div>,
+            <div className="num" key="current-avg">current avg</div>,
+            <div className="num" key="csv-avg">csv avg</div>,
+            <div className="num" key="state">state</div>,
+            <div className="num" key="actions">actions</div>,
+          ]}
+          rows={derivedHoldings.map((holding) =>
+            buildHoldingReviewRow(holding, props.state),
+          )}
+        />
+        <div className="actions" style={{ marginTop: 10 }}>
+          <button
+            className="btn primary"
+            disabled={pendingHoldingUpdates.length === 0}
+            type="button"
+            onClick={props.state.actions.applyAllRobinhoodDerivedHoldings}
+          >
+            Apply all reviewed holdings
+          </button>
+        </div>
+      </Panel>
+
       <RowReviewModal
         row={reviewRow}
         onClose={() => setReviewRow(null)}
@@ -323,6 +397,75 @@ function CsvButton(props: {
   )
 }
 
+function buildHoldingReviewRow(
+  holding: RobinhoodDerivedHolding,
+  state: CommandCenterState,
+) {
+  const reviewDecision = getRobinhoodHoldingsReviewDecision(
+    state.robinhoodHoldingsReview,
+    holding,
+  )
+  const currentLot = state.manualLots[holding.symbol]
+  const canApply =
+    holding.shares !== null &&
+    holding.status !== 'missing_shares' &&
+    holding.status !== 'closed'
+
+  return {
+    id: holding.symbol,
+    cells: [
+      <div key="symbol">
+        <b>{holding.symbol}</b>
+        <div className="muted small">{holding.name}</div>
+      </div>,
+      <div className="small" key="source">
+        {holding.source === 'current_positions_csv'
+          ? 'positions'
+          : 'ledger'}
+      </div>,
+      <div className="num" key="current-shares">
+        {currentLot?.shares || 'missing'}
+      </div>,
+      <div className="num" key="csv-shares">
+        {formatMaybeNumber(holding.shares)}
+      </div>,
+      <div className="num" key="current-avg">
+        {formatCurrentAverageCost(currentLot?.averageCost)}
+      </div>,
+      <div className="num" key="csv-avg">
+        {holding.averageCost === null
+          ? 'missing'
+          : formatCurrency(holding.averageCost)}
+      </div>,
+      <div className="num" key="state">
+        <span className={`card-status ${getHoldingReviewStatusClass(holding, reviewDecision)}`}>
+          {reviewDecision === 'needs_review'
+            ? holding.status.replaceAll('_', ' ')
+            : reviewDecision}
+        </span>
+      </div>,
+      <div className="actions tight" key="actions">
+        <button
+          className="btn ghost"
+          disabled={reviewDecision === 'rejected'}
+          type="button"
+          onClick={() => state.actions.rejectRobinhoodDerivedHolding(holding)}
+        >
+          Reject
+        </button>
+        <button
+          className="btn"
+          disabled={!canApply || reviewDecision === 'applied'}
+          type="button"
+          onClick={() => state.actions.applyRobinhoodDerivedHoldingSync(holding)}
+        >
+          Apply
+        </button>
+      </div>,
+    ],
+  }
+}
+
 function buildFixtureRows(): RobinhoodNormalizedRow[] {
   const importedAt = '2026-05-08T12:00:00.000Z'
   const realized = parseRobinhoodCsvFile({
@@ -341,4 +484,33 @@ function buildFixtureRows(): RobinhoodNormalizedRow[] {
   )
 
   return updateRobinhoodRowReviewState(accepted, realized[1]?.id ?? '', 'accepted')
+}
+
+function getHoldingReviewStatusClass(
+  holding: RobinhoodDerivedHolding,
+  reviewDecision: string,
+): string {
+  if (reviewDecision === 'applied') {
+    return 'exec'
+  }
+
+  if (reviewDecision === 'rejected' || holding.status === 'closed') {
+    return 'draft'
+  }
+
+  return holding.status === 'ready' ? 'ready' : 'draft'
+}
+
+function formatMaybeNumber(value: number | null): string {
+  return value === null ? 'missing' : String(Number(value.toFixed(6)))
+}
+
+function formatCurrentAverageCost(value: string | undefined): string {
+  if (!value) {
+    return 'missing'
+  }
+
+  const parsed = Number(value)
+
+  return Number.isFinite(parsed) ? formatCurrency(parsed) : 'missing'
 }

@@ -13,11 +13,13 @@ export const ROBINHOOD_CSV_DISCLOSURE =
 
 export type RobinhoodCsvReportKind =
   | 'account_activity'
+  | 'current_positions'
   | 'realized_gain_loss'
 
 export type RobinhoodNormalizedKind =
   | 'buy'
   | 'sell'
+  | 'position'
   | 'dividend'
   | 'interest'
   | 'transfer'
@@ -53,6 +55,7 @@ export type RobinhoodImportBatch = {
 
 export type RobinhoodNormalizedRow = {
   id: string
+  fingerprint: string
   batchId: string
   reportKind: RobinhoodCsvReportKind
   sourceRowIndex: number
@@ -64,6 +67,7 @@ export type RobinhoodNormalizedRow = {
   settleDate: string
   quantity: number | null
   price: number | null
+  averageCost: number | null
   amount: number | null
   proceeds: number | null
   costBasis: number | null
@@ -81,6 +85,13 @@ export type RobinhoodCsvImportResult = {
   batch: RobinhoodImportBatch | null
   rows: RobinhoodNormalizedRow[]
   errors: string[]
+}
+
+export type RobinhoodCsvMergeResult = {
+  imports: RobinhoodImportBatch[]
+  rows: RobinhoodNormalizedRow[]
+  addedRows: RobinhoodNormalizedRow[]
+  duplicateRows: RobinhoodNormalizedRow[]
 }
 
 export type RobinhoodTaxPlanningBuckets = {
@@ -127,6 +138,15 @@ const HEADER_ALIASES = {
     'type',
     'action',
     'activity',
+  ],
+  averageCost: [
+    'average cost',
+    'average cost/share',
+    'average cost per share',
+    'avg cost',
+    'avg cost/share',
+    'avg cost per share',
+    'average price paid',
   ],
   amount: [
     'amount',
@@ -185,6 +205,13 @@ const HEADER_ALIASES = {
   ],
 } as const
 
+const CURRENT_POSITION_DETECTION_HEADERS = [
+  ...HEADER_ALIASES.averageCost,
+  ...HEADER_ALIASES.costBasis,
+  ...HEADER_ALIASES.quantity,
+  ...HEADER_ALIASES.symbol,
+]
+
 const REPORT_DETECTION_HEADERS = [
   ...HEADER_ALIASES.proceeds,
   ...HEADER_ALIASES.costBasis,
@@ -233,17 +260,53 @@ export function parseRobinhoodCsvFile(input: {
     }
   }
 
-  const rows = dataRows.map((cells, index) =>
-    normalizeRobinhoodRow({
-      batch,
-      cells,
-      headers,
-      reportKind,
-      sourceRowIndex: headerIndex + index + 2,
-    }),
+  const rows = assignStableRowFingerprints(
+    dataRows.map((cells, index) =>
+      normalizeRobinhoodRow({
+        batch,
+        cells,
+        headers,
+        reportKind,
+        sourceRowIndex: headerIndex + index + 2,
+      }),
+    ),
   )
 
   return { batch, rows, errors: [] }
+}
+
+export function mergeRobinhoodCsvImportResult(input: {
+  currentImports: readonly RobinhoodImportBatch[]
+  currentRows: readonly RobinhoodNormalizedRow[]
+  result: RobinhoodCsvImportResult
+}): RobinhoodCsvMergeResult {
+  const imports = input.result.batch
+    ? [input.result.batch, ...input.currentImports]
+    : [...input.currentImports]
+  const existingByFingerprint = new Map(
+    input.currentRows.map((row) => [row.fingerprint, row]),
+  )
+  const addedRows: RobinhoodNormalizedRow[] = []
+  const duplicateRows: RobinhoodNormalizedRow[] = []
+
+  for (const row of input.result.rows) {
+    const existing = existingByFingerprint.get(row.fingerprint)
+
+    if (existing) {
+      duplicateRows.push(existing)
+      continue
+    }
+
+    existingByFingerprint.set(row.fingerprint, row)
+    addedRows.push(row)
+  }
+
+  return {
+    imports,
+    rows: [...addedRows, ...input.currentRows],
+    addedRows,
+    duplicateRows,
+  }
 }
 
 export function updateRobinhoodRowReviewState(
@@ -389,9 +452,15 @@ function normalizeRobinhoodRow(input: {
   )
   const get = buildFieldGetter(input.headers, input.cells)
 
-  return input.reportKind === 'realized_gain_loss'
-    ? normalizeRealizedGainLossRow(input, raw, get)
-    : normalizeAccountActivityRow(input, raw, get)
+  if (input.reportKind === 'realized_gain_loss') {
+    return normalizeRealizedGainLossRow(input, raw, get)
+  }
+
+  if (input.reportKind === 'current_positions') {
+    return normalizeCurrentPositionRow(input, raw, get)
+  }
+
+  return normalizeAccountActivityRow(input, raw, get)
 }
 
 function normalizeAccountActivityRow(
@@ -438,6 +507,7 @@ function normalizeAccountActivityRow(
   const baseRow = buildBaseRow({
     activityType,
     amount,
+    averageCost: null,
     batch: input.batch,
     costBasis,
     description,
@@ -454,6 +524,65 @@ function normalizeAccountActivityRow(
     sourceRowIndex: input.sourceRowIndex,
     symbol,
     tradeDate: normalizeDate(get(...HEADER_ALIASES.tradeDate)),
+    washSaleLossDisallowed: 0,
+  })
+
+  return finalizeRow(baseRow)
+}
+
+function normalizeCurrentPositionRow(
+  input: {
+    batch: RobinhoodImportBatch
+    reportKind: RobinhoodCsvReportKind
+    sourceRowIndex: number
+  },
+  raw: Record<string, string>,
+  get: FieldGetter,
+): RobinhoodNormalizedRow {
+  const description = get(...HEADER_ALIASES.description)
+  const symbol = normalizeSymbol(
+    get(...HEADER_ALIASES.symbol) || extractSymbol(description),
+  )
+  const quantity = positiveNumberOrNull(
+    absoluteNumber(parseOptionalNumber(get(...HEADER_ALIASES.quantity))),
+  )
+  const explicitAverageCost = positiveNumberOrNull(
+    parseOptionalNumber(get(...HEADER_ALIASES.averageCost)),
+  )
+  const explicitCostBasis = positiveNumberOrNull(
+    parseOptionalNumber(get(...HEADER_ALIASES.costBasis)),
+  )
+  const averageCost =
+    explicitAverageCost ??
+    (explicitCostBasis !== null && quantity !== null
+      ? explicitCostBasis / quantity
+      : null)
+  const costBasis =
+    explicitCostBasis ??
+    (explicitAverageCost !== null && quantity !== null
+      ? explicitAverageCost * quantity
+      : null)
+
+  const baseRow = buildBaseRow({
+    activityType: 'Current position',
+    amount: null,
+    averageCost,
+    batch: input.batch,
+    costBasis,
+    description,
+    fees: 0,
+    holdingPeriod: 'unknown',
+    kind: 'position',
+    price: null,
+    proceeds: null,
+    quantity,
+    raw,
+    realizedGainLoss: null,
+    reportKind: input.reportKind,
+    settleDate: '',
+    sourceRowIndex: input.sourceRowIndex,
+    symbol,
+    tradeDate: '',
     washSaleLossDisallowed: 0,
   })
 
@@ -500,6 +629,7 @@ function normalizeRealizedGainLossRow(
   const baseRow = buildBaseRow({
     activityType: 'Realized gain/loss',
     amount: proceeds,
+    averageCost: null,
     batch: input.batch,
     costBasis,
     description,
@@ -529,6 +659,7 @@ function normalizeRealizedGainLossRow(
 function buildBaseRow(input: {
   activityType: string
   amount: number | null
+  averageCost: number | null
   batch: RobinhoodImportBatch
   costBasis: number | null
   description: string
@@ -549,6 +680,7 @@ function buildBaseRow(input: {
 }): RobinhoodNormalizedRow {
   return {
     id: `${input.batch.id}-row-${input.sourceRowIndex}`,
+    fingerprint: '',
     batchId: input.batch.id,
     reportKind: input.reportKind,
     sourceRowIndex: input.sourceRowIndex,
@@ -560,6 +692,7 @@ function buildBaseRow(input: {
     settleDate: input.settleDate,
     quantity: input.quantity,
     price: input.price,
+    averageCost: input.averageCost,
     amount: input.amount,
     proceeds: input.proceeds,
     costBasis: input.costBasis,
@@ -588,6 +721,18 @@ function getReconciliationStatus(
 ): RobinhoodReconciliationStatus {
   if (row.kind === 'unknown') {
     return 'unsupported_row'
+  }
+
+  if (row.kind === 'position') {
+    if (!row.symbol || row.quantity === null) {
+      return 'unsupported_row'
+    }
+
+    if (row.averageCost === null || row.costBasis === null) {
+      return 'missing_basis'
+    }
+
+    return 'matched'
   }
 
   if (row.kind !== 'sell') {
@@ -636,7 +781,15 @@ function buildReconciliationNotes(
   }
 
   if (status === 'matched') {
-    notes.push('Sell row has proceeds and basis for local planning.')
+    notes.push(
+      row.kind === 'position'
+        ? 'Position row has shares and basis for local holdings review.'
+        : 'Sell row has proceeds and basis for local planning.',
+    )
+  }
+
+  if (row.kind === 'position') {
+    notes.push('Position rows must be applied from the holdings review before changing portfolio lots.')
   }
 
   if (row.reportKind === 'realized_gain_loss') {
@@ -744,9 +897,16 @@ function findHeaderIndex(lines: readonly string[][]): number {
 
 function inferReportKind(headers: readonly string[]): RobinhoodCsvReportKind {
   const normalizedHeaders = headers.map(normalizeHeader)
+  const currentPositionScore = CURRENT_POSITION_DETECTION_HEADERS.filter(
+    (header) => normalizedHeaders.includes(normalizeHeader(header)),
+  ).length
   const realizedScore = REPORT_DETECTION_HEADERS.filter((header) =>
     normalizedHeaders.includes(normalizeHeader(header)),
   ).length
+
+  if (currentPositionScore >= 3 && realizedScore < 2) {
+    return 'current_positions'
+  }
 
   return realizedScore >= 2 ? 'realized_gain_loss' : 'account_activity'
 }
@@ -863,6 +1023,65 @@ function parseCsvRecords(text: string): string[][] {
   return records
 }
 
+export function buildRobinhoodRowFingerprint(
+  row: RobinhoodNormalizedRow,
+): string {
+  return stableHash(
+    [
+      row.reportKind,
+      row.kind,
+      row.symbol,
+      row.description,
+      row.activityType,
+      row.tradeDate,
+      row.settleDate,
+      formatFingerprintNumber(row.quantity),
+      formatFingerprintNumber(row.price),
+      formatFingerprintNumber(row.averageCost),
+      formatFingerprintNumber(row.amount),
+      formatFingerprintNumber(row.proceeds),
+      formatFingerprintNumber(row.costBasis),
+      formatFingerprintNumber(row.realizedGainLoss),
+      row.holdingPeriod,
+      formatFingerprintNumber(row.washSaleLossDisallowed),
+      formatFingerprintNumber(row.fees),
+    ].join('|'),
+  )
+}
+
+function assignStableRowFingerprints(
+  rows: readonly RobinhoodNormalizedRow[],
+): RobinhoodNormalizedRow[] {
+  const baseFingerprints = rows.map(buildRobinhoodRowFingerprint)
+  const totalByBaseFingerprint = new Map<string, number>()
+  const seenByBaseFingerprint = new Map<string, number>()
+
+  for (const fingerprint of baseFingerprints) {
+    totalByBaseFingerprint.set(
+      fingerprint,
+      (totalByBaseFingerprint.get(fingerprint) ?? 0) + 1,
+    )
+  }
+
+  return rows.map((row, index) => {
+    const baseFingerprint = baseFingerprints[index]
+    const duplicateCount = totalByBaseFingerprint.get(baseFingerprint) ?? 1
+    const nextSeen = (seenByBaseFingerprint.get(baseFingerprint) ?? 0) + 1
+    seenByBaseFingerprint.set(baseFingerprint, nextSeen)
+
+    const fingerprint =
+      duplicateCount > 1
+        ? `${baseFingerprint}-${String(nextSeen).padStart(3, '0')}`
+        : baseFingerprint
+
+    return {
+      ...row,
+      fingerprint,
+      id: `robinhood-row-${fingerprint}`,
+    }
+  })
+}
+
 function parseOptionalNumber(value: unknown): number | null {
   if (typeof value === 'number') {
     return Number.isFinite(value) ? value : null
@@ -888,6 +1107,21 @@ function parseOptionalNumber(value: unknown): number | null {
   }
 
   return isParentheticalNegative ? -parsed : parsed
+}
+
+function formatFingerprintNumber(value: number | null): string {
+  return value === null ? '' : String(Number(value.toFixed(8)))
+}
+
+function stableHash(value: string): string {
+  let hash = 0x811c9dc5
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 0x01000193)
+  }
+
+  return (hash >>> 0).toString(36)
 }
 
 function normalizeDate(value: string): string {

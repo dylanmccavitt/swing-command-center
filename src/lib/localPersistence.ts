@@ -15,6 +15,12 @@ import type {
   RobinhoodReconciliationStatus,
   RobinhoodReviewState,
 } from './robinhoodCsv'
+import { buildRobinhoodRowFingerprint } from './robinhoodCsv'
+import type {
+  RobinhoodHoldingsReviewDecision,
+  RobinhoodHoldingsReviewEntry,
+  RobinhoodHoldingsReviewMap,
+} from './robinhoodHoldingsSync'
 import type { SellFillRecord, SellFillStatus } from './sellFills'
 import type {
   TradeJournalEntry,
@@ -94,6 +100,7 @@ export type SwingLocalState = {
   sellFills: SellFillRecord[]
   robinhoodImports: RobinhoodImportBatch[]
   robinhoodRows: RobinhoodNormalizedRow[]
+  robinhoodHoldingsReview: RobinhoodHoldingsReviewMap
   buyingPowerForm: BuyingPowerForm
 }
 
@@ -218,11 +225,13 @@ const JOURNAL_TYPES = new Set<TradeJournalEntryType>([
 const JOURNAL_SOURCES = new Set(['profit_lock', 'trade_setup', 'manual'])
 const ROBINHOOD_REPORT_KINDS = new Set<RobinhoodCsvReportKind>([
   'account_activity',
+  'current_positions',
   'realized_gain_loss',
 ])
 const ROBINHOOD_ROW_KINDS = new Set<RobinhoodNormalizedKind>([
   'buy',
   'sell',
+  'position',
   'dividend',
   'interest',
   'transfer',
@@ -243,6 +252,12 @@ const ROBINHOOD_REVIEW_STATES = new Set<RobinhoodReviewState>([
   'accepted',
   'rejected',
 ])
+const ROBINHOOD_HOLDINGS_REVIEW_DECISIONS =
+  new Set<RobinhoodHoldingsReviewDecision>([
+    'needs_review',
+    'applied',
+    'rejected',
+  ])
 const ROBINHOOD_HOLDING_PERIODS = new Set<RobinhoodHoldingPeriod>([
   'short_term',
   'long_term',
@@ -519,11 +534,12 @@ function normalizeSwingLocalStateSnapshot(
     isRobinhoodImportBatch,
     errors,
   )
-  const robinhoodRows = normalizeArray(
-    state.robinhoodRows,
-    'robinhoodRows',
-    isRobinhoodNormalizedRow,
+  const robinhoodRows = normalizeRobinhoodRows(state.robinhoodRows, errors)
+  const robinhoodHoldingsReview = normalizeRobinhoodHoldingsReview(
+    state.robinhoodHoldingsReview,
+    defaults.robinhoodHoldingsReview,
     errors,
+    warnings,
   )
   const buyingPowerForm = normalizeBuyingPowerForm(
     state.buyingPowerForm,
@@ -575,6 +591,7 @@ function normalizeSwingLocalStateSnapshot(
         sellFills,
         robinhoodImports,
         robinhoodRows,
+        robinhoodHoldingsReview,
         buyingPowerForm,
       },
     },
@@ -830,6 +847,63 @@ function normalizeOptionalString(
   return value
 }
 
+function normalizeRobinhoodRows(
+  value: unknown,
+  errors: string[],
+): RobinhoodNormalizedRow[] | null {
+  if (!Array.isArray(value)) {
+    errors.push('robinhoodRows must be an array.')
+    return null
+  }
+
+  const rows: RobinhoodNormalizedRow[] = []
+
+  for (const [index, item] of value.entries()) {
+    const row = normalizeRobinhoodRow(item)
+
+    if (!row) {
+      errors.push(`robinhoodRows[${index}] is invalid.`)
+      return null
+    }
+
+    rows.push(row)
+  }
+
+  return cloneJson(rows)
+}
+
+function normalizeRobinhoodHoldingsReview(
+  value: unknown,
+  defaults: RobinhoodHoldingsReviewMap,
+  errors: string[],
+  warnings: string[],
+): RobinhoodHoldingsReviewMap {
+  if (value === undefined) {
+    warnings.push(
+      'robinhoodHoldingsReview missing; default review state was used.',
+    )
+    return cloneJson(defaults)
+  }
+
+  if (!isObject(value)) {
+    errors.push('robinhoodHoldingsReview must be an object keyed by symbol.')
+    return cloneJson(defaults)
+  }
+
+  const review: RobinhoodHoldingsReviewMap = {}
+
+  for (const [symbol, entry] of Object.entries(value)) {
+    if (!isRobinhoodHoldingsReviewEntry(entry)) {
+      errors.push(`robinhoodHoldingsReview.${symbol} is invalid.`)
+      continue
+    }
+
+    review[normalizeSymbol(symbol)] = cloneJson(entry)
+  }
+
+  return review
+}
+
 function isSeedHolding(value: unknown): value is SeedHolding {
   return (
     isObject(value) &&
@@ -930,43 +1004,107 @@ function isRobinhoodImportBatch(
   )
 }
 
-function isRobinhoodNormalizedRow(
+function normalizeRobinhoodRow(value: unknown): RobinhoodNormalizedRow | null {
+  if (
+    !isObject(value) ||
+    !isNonEmptyString(value.id) ||
+    !isNonEmptyString(value.batchId) ||
+    !isString(value.reportKind) ||
+    !ROBINHOOD_REPORT_KINDS.has(value.reportKind as RobinhoodCsvReportKind) ||
+    !isNumber(value.sourceRowIndex) ||
+    !isString(value.kind) ||
+    !ROBINHOOD_ROW_KINDS.has(value.kind as RobinhoodNormalizedKind) ||
+    !isString(value.symbol) ||
+    !isString(value.description) ||
+    !isString(value.activityType) ||
+    !isString(value.tradeDate) ||
+    !isString(value.settleDate) ||
+    !isNullableNumber(value.quantity) ||
+    !isNullableNumber(value.price) ||
+    !isNullableNumber(value.averageCost ?? null) ||
+    !isNullableNumber(value.amount) ||
+    !isNullableNumber(value.proceeds) ||
+    !isNullableNumber(value.costBasis) ||
+    !isNullableNumber(value.realizedGainLoss) ||
+    !isString(value.holdingPeriod) ||
+    !ROBINHOOD_HOLDING_PERIODS.has(
+      value.holdingPeriod as RobinhoodHoldingPeriod,
+    ) ||
+    !isNumber(value.washSaleLossDisallowed) ||
+    !isNumber(value.fees) ||
+    !isString(value.reconciliationStatus) ||
+    !ROBINHOOD_RECONCILIATION_STATUSES.has(
+      value.reconciliationStatus as RobinhoodReconciliationStatus,
+    ) ||
+    !isString(value.reviewState) ||
+    !ROBINHOOD_REVIEW_STATES.has(value.reviewState as RobinhoodReviewState) ||
+    !isStringArray(value.reconciliationNotes) ||
+    !isStringRecord(value.raw)
+  ) {
+    return null
+  }
+
+  const checked = value as RobinhoodNormalizedRow & {
+    averageCost?: number | null
+    fingerprint?: string
+  }
+  const row: RobinhoodNormalizedRow = {
+    id: checked.id,
+    fingerprint: isNonEmptyString(checked.fingerprint)
+      ? checked.fingerprint
+      : '',
+    batchId: checked.batchId,
+    reportKind: checked.reportKind,
+    sourceRowIndex: checked.sourceRowIndex,
+    kind: checked.kind,
+    symbol: checked.symbol,
+    description: checked.description,
+    activityType: checked.activityType,
+    tradeDate: checked.tradeDate,
+    settleDate: checked.settleDate,
+    quantity: checked.quantity,
+    price: checked.price,
+    averageCost: checked.averageCost ?? null,
+    amount: checked.amount,
+    proceeds: checked.proceeds,
+    costBasis: checked.costBasis,
+    realizedGainLoss: checked.realizedGainLoss,
+    holdingPeriod: checked.holdingPeriod,
+    washSaleLossDisallowed: checked.washSaleLossDisallowed,
+    fees: checked.fees,
+    reconciliationStatus: checked.reconciliationStatus,
+    reviewState: checked.reviewState,
+    reconciliationNotes: checked.reconciliationNotes,
+    raw: checked.raw,
+  }
+  const fingerprint = row.fingerprint || buildRobinhoodRowFingerprint(row)
+
+  return {
+    ...row,
+    fingerprint,
+    id: row.fingerprint ? row.id : `robinhood-row-${fingerprint}`,
+  }
+}
+
+function isRobinhoodHoldingsReviewEntry(
   value: unknown,
-): value is RobinhoodNormalizedRow {
+): value is RobinhoodHoldingsReviewEntry {
   return (
     isObject(value) &&
-    isNonEmptyString(value.id) &&
-    isNonEmptyString(value.batchId) &&
-    isString(value.reportKind) &&
-    ROBINHOOD_REPORT_KINDS.has(value.reportKind as RobinhoodCsvReportKind) &&
-    isNumber(value.sourceRowIndex) &&
-    isString(value.kind) &&
-    ROBINHOOD_ROW_KINDS.has(value.kind as RobinhoodNormalizedKind) &&
-    isString(value.symbol) &&
-    isString(value.description) &&
-    isString(value.activityType) &&
-    isString(value.tradeDate) &&
-    isString(value.settleDate) &&
-    isNullableNumber(value.quantity) &&
-    isNullableNumber(value.price) &&
-    isNullableNumber(value.amount) &&
-    isNullableNumber(value.proceeds) &&
+    isNonEmptyString(value.symbol) &&
+    isNonEmptyString(value.fingerprint) &&
+    isString(value.decision) &&
+    ROBINHOOD_HOLDINGS_REVIEW_DECISIONS.has(
+      value.decision as RobinhoodHoldingsReviewDecision,
+    ) &&
+    isIsoLikeDate(value.updatedAt) &&
+    (isIsoLikeDate(value.appliedAt) || value.appliedAt === null) &&
+    (value.source === 'current_positions_csv' ||
+      value.source === 'account_activity_ledger') &&
+    isNullableNumber(value.shares) &&
+    isNullableNumber(value.averageCost) &&
     isNullableNumber(value.costBasis) &&
-    isNullableNumber(value.realizedGainLoss) &&
-    isString(value.holdingPeriod) &&
-    ROBINHOOD_HOLDING_PERIODS.has(
-      value.holdingPeriod as RobinhoodHoldingPeriod,
-    ) &&
-    isNumber(value.washSaleLossDisallowed) &&
-    isNumber(value.fees) &&
-    isString(value.reconciliationStatus) &&
-    ROBINHOOD_RECONCILIATION_STATUSES.has(
-      value.reconciliationStatus as RobinhoodReconciliationStatus,
-    ) &&
-    isString(value.reviewState) &&
-    ROBINHOOD_REVIEW_STATES.has(value.reviewState as RobinhoodReviewState) &&
-    isStringArray(value.reconciliationNotes) &&
-    isStringRecord(value.raw)
+    isStringArray(value.rowIds)
   )
 }
 

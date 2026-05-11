@@ -75,6 +75,7 @@ export function RowReviewModal(props: {
           <KV label="trade date" value={row.tradeDate ?? 'missing'} />
           <KV label="quantity" value={row.quantity ?? 'missing'} />
           <KV label="proceeds" value={formatMaybeCurrency(row.proceeds)} />
+          <KV label="average cost" value={formatMaybeCurrency(row.averageCost)} />
           <KV label="basis" value={formatMaybeCurrency(row.costBasis)} />
           <KV
             label="recognized realized P/L"

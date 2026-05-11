@@ -4,6 +4,7 @@ import {
   buildRobinhoodPlanningExport,
   buildRobinhoodTaxPlanningBuckets,
   buildSellFillsFromAcceptedRobinhoodRows,
+  mergeRobinhoodCsvImportResult,
   parseRobinhoodCsvFile,
   ROBINHOOD_CSV_DISCLOSURE,
   updateRobinhoodRowReviewState,
@@ -119,6 +120,73 @@ describe('Robinhood CSV import and reconciliation', () => {
       washSaleLossDisallowed: 25,
       reconciliationStatus: 'possible_wash_sale',
     })
+  })
+
+  it('parses current positions CSV rows with shares, average cost, and cost basis', () => {
+    const result = parseRobinhoodCsvFile({
+      fileName: 'current-positions.csv',
+      importedAt: IMPORTED_AT,
+      text: [
+        'Symbol,Name,Shares,Average Cost,Cost Basis',
+        'NVDA,NVIDIA Corp,6,$125.50,$753.00',
+        'AAPL,Apple Inc,2,$180.00,$360.00',
+      ].join('\n'),
+    })
+
+    expect(result.errors).toEqual([])
+    expect(result.batch?.reportKind).toBe('current_positions')
+    expect(result.rows[0]).toMatchObject({
+      averageCost: 125.5,
+      costBasis: 753,
+      kind: 'position',
+      quantity: 6,
+      reconciliationStatus: 'matched',
+      symbol: 'NVDA',
+    })
+    expect(result.rows[0].fingerprint).toBeTruthy()
+    expect(result.rows[0].id).toContain(result.rows[0].fingerprint)
+  })
+
+  it('dedupes older rows when a newer full-history account CSV is re-imported', () => {
+    const firstImport = parseRobinhoodCsvFile({
+      fileName: 'account-activity.csv',
+      importedAt: IMPORTED_AT,
+      reportKind: 'account_activity',
+      text: [
+        'Activity Date,Instrument,Description,Trans Code,Quantity,Price,Amount',
+        '05/01/2026,AAPL,Apple buy,Buy,2,$100.00,"($200.00)"',
+        '05/02/2026,NVDA,NVIDIA sell,Sell,4,$300.00,"$1,200.00"',
+      ].join('\n'),
+    })
+    const reviewedRows = updateRobinhoodRowReviewState(
+      firstImport.rows,
+      firstImport.rows[0].id,
+      'accepted',
+    )
+    const secondImport = parseRobinhoodCsvFile({
+      fileName: 'account-activity.csv',
+      importedAt: '2026-05-09T12:00:00.000Z',
+      reportKind: 'account_activity',
+      text: [
+        'Activity Date,Instrument,Description,Trans Code,Quantity,Price,Amount',
+        '05/03/2026,AMD,AMD buy,Buy,1,$110.00,"($110.00)"',
+        '05/01/2026,AAPL,Apple buy,Buy,2,$100.00,"($200.00)"',
+        '05/02/2026,NVDA,NVIDIA sell,Sell,4,$300.00,"$1,200.00"',
+      ].join('\n'),
+    })
+    const merged = mergeRobinhoodCsvImportResult({
+      currentImports: firstImport.batch ? [firstImport.batch] : [],
+      currentRows: reviewedRows,
+      result: secondImport,
+    })
+
+    expect(secondImport.rows[1].fingerprint).toBe(firstImport.rows[0].fingerprint)
+    expect(merged.addedRows).toHaveLength(1)
+    expect(merged.duplicateRows).toHaveLength(2)
+    expect(merged.rows).toHaveLength(3)
+    expect(
+      merged.rows.find((row) => row.symbol === 'AAPL')?.reviewState,
+    ).toBe('accepted')
   })
 
   it('maps only accepted imported sells into the sell-fill model and prefers realized gain/loss rows', () => {

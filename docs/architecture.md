@@ -20,8 +20,9 @@ browser-session journal rows, legacy realized P/L summaries, configurable
 pay-yourself controls, and exportable review notes. Manual sell-fill helpers
 are the source of truth for actual realized P/L, pay-yourself, buying power,
 and reinvestable cash. Robinhood CSV import helpers normalize local official
-account-activity and realized gain/loss files into review-gated rows before any
-accepted sells feed the sell-fill buying-power model. The research desk can run
+account-activity, current-position, and realized gain/loss files into
+review-gated rows before accepted rows can feed sell-fill buying-power math or
+reviewed holdings/lots sync. The research desk can run
 a typed research-provider flow for one symbol or the selected AI-stack layer,
 then draft editable research fields with visible source URLs, timestamps, and
 review state. It can also queue a local Codex/ChatGPT research request JSON and
@@ -44,7 +45,8 @@ AI-drafted / Needs review.
   position valuation, concentration thresholds, and seed summaries.
 - `src/lib/localPersistence.ts`: versioned local browser storage boundary for
   user-entered holdings/lots, edited research cards, planning settings, journal
-  rows, sell fills, Robinhood import review state, and reset/validation flows.
+  rows, sell fills, Robinhood import row decisions, Robinhood holdings review
+  decisions, applied holdings/lots, and reset/validation flows.
 - `src/lib/profitLock.ts`: manual scenario ticket calculators for trimming to
   target weight, locking unrealized gains, recovering cost basis, raising a
   cash target, and estimating an editable tax reserve bucket.
@@ -56,9 +58,14 @@ AI-drafted / Needs review.
 - `src/lib/sellFills.ts`: manual sell-fill status model, filled-sell realized
   P/L math, buying-power summary, local CSV/JSON import parser, and planning
   export shape.
-- `src/lib/robinhoodCsv.ts`: file-only Robinhood account activity and realized
-  gain/loss CSV parser, row normalizer, reconciliation statuses, accepted-row
+- `src/lib/robinhoodCsv.ts`: file-only Robinhood account activity, current
+  positions, and realized gain/loss CSV parser, stable row fingerprinting,
+  import dedupe, row normalizer, reconciliation statuses, accepted-row
   sell-fill mapper, tax-planning buckets, and import-aware planning export.
+- `src/lib/robinhoodHoldingsSync.ts`: accepted-row holdings derivation layer
+  that projects current positions from position CSV rows or sufficient
+  buy/sell ledger rows, keeps missing basis explicit, and builds apply patches
+  for `holdings` plus `manualLots`.
 - `src/lib/profitCashPlan.ts`: manual helper that feeds remaining filled-sell
   buying power into current holdings, research ideas, and cash as review
   choices.
@@ -122,13 +129,15 @@ AI-drafted / Needs review.
   and reinvestable cash, but the app must not invent missing shares, fill
   prices, cost basis, fees, dates, sources, or references.
 - Robinhood CSV boundary: Robinhood data enters through user-selected local CSV
-  files only. The app supports official account activity CSV files and realized
-  gain/loss CSV files, but it must not log in to Robinhood, scrape pages,
-  handle credentials, call unofficial Robinhood APIs, use the Robinhood Crypto
-  Trading API, execute orders, or auto-accept rows. Imported rows remain
-  normalized review rows until the user accepts them; accepted sell rows may map
-  into the sell-fill model, and realized gain/loss CSV values are preferred over
-  matching account-activity sells.
+  files only. The app supports official account activity CSV files, current
+  positions CSV files when available, and realized gain/loss CSV files, but it
+  must not log in to Robinhood, scrape pages, handle credentials, call
+  unofficial Robinhood APIs, use the Robinhood Crypto Trading API, execute
+  orders, or auto-accept rows. Imported rows remain normalized review rows
+  until the user accepts them; accepted sell rows may map into the sell-fill
+  model, accepted position/ledger rows may build a holdings review, and
+  realized gain/loss CSV values are preferred over matching account-activity
+  sells.
 - Research boundary: candidate scores only measure whether user-editable
   thesis/setup fields are filled across AI-stack and General watchlist lanes.
   They must not be framed as an AI model, guaranteed recommendation, ranking of
@@ -186,40 +195,47 @@ AI-drafted / Needs review.
     canceled/reviewed, import local CSV/JSON sell records, enter starting cash
     and manually marked reinvested cash, then review buying power from filled
     and reviewed sells only.
-16. The user can import official Robinhood account activity CSV files and
-    realized gain/loss CSV files. Imported rows normalize to buys, sells,
-    dividends, interest, transfers, fees, or unknown rows with reconciliation
-    states such as matched, needs review, missing basis, missing proceeds,
-    possible wash sale, and unsupported row.
+16. The user can import official Robinhood account activity CSV files, current
+    positions CSV files, and realized gain/loss CSV files. Imported rows
+    normalize to buys, sells, positions, dividends, interest, transfers, fees,
+    or unknown rows with stable fingerprints, dedupe across full-history
+    re-imports, and reconciliation states such as matched, needs review,
+    missing basis, missing proceeds, possible wash sale, and unsupported row.
 17. Robinhood imported rows must be accepted before they affect buying power,
-    pay-yourself, or reinvest cash. Accepted sell rows map into reviewed
-    sell-fill records; matching realized gain/loss rows take precedence over
-    account-activity sell rows for proceeds, basis, realized P/L, holding
-    period, and wash-sale fields.
-18. Robinhood tax-planning buckets aggregate accepted short-term and long-term
+    pay-yourself, reinvest cash, or holdings/lots sync. Accepted sell rows map
+    into reviewed sell-fill records; matching realized gain/loss rows take
+    precedence over account-activity sell rows for proceeds, basis, realized
+    P/L, holding period, and wash-sale fields.
+18. Robinhood holdings sync derives per-symbol positions from accepted current
+    positions CSV rows first, then from sufficient accepted account-activity
+    buy/sell ledgers. The Import view compares the current app lot against the
+    CSV-derived lot and lets the user reject, apply one symbol, or apply all
+    reviewed symbols. Missing share counts and closed projections block
+    applying; missing basis leaves average cost blank instead of inventing it.
+19. Robinhood tax-planning buckets aggregate accepted short-term and long-term
     realized gain/loss, wash-sale disallowed losses, dividends/interest,
     reserve estimate, pay-yourself set-aside, and remaining reinvestable cash.
-19. Reinvest-cash planning uses remaining filled-sell buying power after reserve,
+20. Reinvest-cash planning uses remaining filled-sell buying power after reserve,
     pay-yourself, and manually marked reinvestments, then lists current holdings,
     watchlist/research ideas, and cash as manual places to review.
-20. Research watchlist helpers group current holdings and placeholder candidates
+21. Research watchlist helpers group current holdings and placeholder candidates
     by research lane, including the General watchlist lane, calculate manual
     checklist completeness, and filter the candidate list by layer, score,
     holding status, and missing inputs.
-21. The user can run research for the selected symbol or selected layer. The
+22. The user can run research for the selected symbol or selected layer. The
     research provider returns recent-news, investor, filing, earnings, and
     sector-context source metadata; the app drafts thesis, catalyst,
     invalidation, risk notes, review date, and source notes into the editable
     card.
-22. The user can queue a Codex research request for the selected symbol. The app
+23. The user can queue a Codex research request for the selected symbol. The app
     creates a structured daily research desk request JSON for manual worker
     processing, including source and import checklists for any ticker, then can
     import a local result JSON only after schema, symbol/request, source
     metadata, and non-recommendation validation pass.
-23. On each accepted local state change, the persistence boundary writes a
+24. On each accepted local state change, the persistence boundary writes a
     versioned snapshot. The settings panel exposes a deliberate reset action
     that clears saved browser state and reloads seed defaults.
-24. Tests verify that holding summaries follow the current user-provided list,
+25. Tests verify that holding summaries follow the current user-provided list,
     do not invent lot data, and that portfolio/profit-lock/cockpit math remains
     stable. Research-provider tests cover source metadata, stale/empty states,
     draft normalization, and non-recommendation copy. Codex queue tests cover
@@ -234,8 +250,13 @@ AI-drafted / Needs review.
     non-tax-advice copy. Robinhood CSV tests cover CSV parsing, row
     normalization, sell-fill mapping, reconciliation statuses, review/accept
     gating, tax-planning buckets, import-aware export shape, and non-automation
-    / non-tax-advice copy. Profit-cash tests cover filled-sell buying-power
-    routing, candidate rows, and manual non-advisory copy. Action-desk tests
+    / non-tax-advice copy. Robinhood holdings-sync tests cover stable
+    full-history dedupe, buy/sell net-share projection, missing-basis behavior,
+    realized gain/loss precedence, apply-to-holdings patches, and rejected-row
+    gating. Local persistence tests cover import row decisions, holdings review
+    decisions, and applied holdings state. Profit-cash tests cover filled-sell
+    buying-power routing, candidate rows, and manual non-advisory copy.
+    Action-desk tests
     cover missing-basis priority, cash redeploy routing, holding setup, risk
     trim review, and Codex research queue/import next steps.
 
@@ -243,8 +264,9 @@ AI-drafted / Needs review.
 
 - Starter bootstrap holdings are AAPL, GOOG, NVDA, and IREN, but the working
   portfolio is the editable local holding list.
-- Share counts and average cost are manual local inputs; source-controlled seed
-  data and generated rows must not invent lot details.
+- Share counts and average cost are manual local inputs or reviewed local CSV
+  imports; source-controlled seed data and generated rows must not invent lot
+  details.
 - Source-controlled data must never include brokerage credentials or secrets.
 - Local persistence snapshots are browser-local, typed, and versioned. Invalid
   JSON, unsupported schema versions, or malformed core arrays must fail visibly
@@ -268,10 +290,11 @@ AI-drafted / Needs review.
   the math. Filled and reviewed rows can count only from user-entered or
   locally imported values.
 - Robinhood imported rows do not affect buying-power, pay-yourself, reinvest
-  cash, or tax-planning buckets until accepted. Missing basis, proceeds, holding
-  period, wash-sale, fee, or tax fields must remain missing; the app can derive
-  a per-share fill price from imported proceeds and quantity, but must not
-  invent unavailable Robinhood data.
+  cash, holdings/lots sync, or tax-planning buckets until accepted. Missing
+  basis, proceeds, holding period, wash-sale, fee, share count, or tax fields
+  must remain missing; the app can derive a per-share fill price from imported
+  proceeds and quantity or average cost from imported shares plus imported cost
+  basis, but must not invent unavailable Robinhood data.
 - Pay-yourself estimates default to a small percentage of filled-sell gain after
   reserve and remain configurable.
 - Reinvest-cash planning must remain a manual review list. It may show current

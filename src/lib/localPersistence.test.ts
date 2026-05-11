@@ -242,6 +242,43 @@ describe('local Swing state persistence', () => {
       ),
     ).toHaveLength(1)
   })
+
+  it('round-trips Robinhood holdings review decisions for applied CSV lots', () => {
+    const state = buildLocalState({
+      robinhoodHoldingsReview: {
+        NVDA: {
+          symbol: 'NVDA',
+          fingerprint: 'nvda-holding-review',
+          decision: 'applied',
+          updatedAt: SAVED_AT,
+          appliedAt: SAVED_AT,
+          source: 'current_positions_csv',
+          shares: 6,
+          averageCost: 125.5,
+          costBasis: 753,
+          rowIds: ['robinhood-row-nvda'],
+        },
+      },
+    })
+    const result = parseSwingLocalStateSnapshot(
+      serializeSwingLocalState(buildSwingLocalStateSnapshot(state, SAVED_AT)),
+      buildLocalState(),
+    )
+
+    expect(result.ok).toBe(true)
+
+    if (!result.ok) {
+      return
+    }
+
+    expect(result.snapshot.state.robinhoodHoldingsReview.NVDA).toMatchObject({
+      decision: 'applied',
+      shares: 6,
+      averageCost: 125.5,
+      costBasis: 753,
+      source: 'current_positions_csv',
+    })
+  })
 })
 
 function buildLocalState(
@@ -295,6 +332,7 @@ function buildLocalState(
     sellFills: [],
     robinhoodImports: [],
     robinhoodRows: [],
+    robinhoodHoldingsReview: {},
     buyingPowerForm: {
       startingCash: '',
       manuallyReinvestedCash: '',
