@@ -8,8 +8,9 @@ user-added holdings, accepts manual local lot inputs in the browser, persists
 typed user-entered cockpit state to versioned local browser storage,
 polls a replaceable market-data provider for holdings and research watchlist
 symbols, turns complete positions into concentration status, chart rows, and
-manual profit-lock scenario tickets, and keeps an editable AI-stack research
-watchlist for thesis-first trade setup tracking. A target/stop scenario planner
+manual profit-lock scenario tickets, and keeps an editable research watchlist
+with AI-stack lanes plus a General watchlist lane for thesis-first trade setup
+tracking. A target/stop scenario planner
 combines selected holdings or research cards with editable price, risk, trim,
 support, and time-horizon inputs to draft manual planning levels with
 calculation reasons. Manual trade-ticket and journal helpers convert
@@ -33,8 +34,9 @@ AI-drafted / Needs review.
   state surfaces.
 - `src/data/seedHoldings.ts`: starter current holding symbols and lightweight
   metadata used to bootstrap the editable local holding list.
-- `src/data/seedWatchlist.ts`: AI-stack layer definitions plus editable seed
-  research cards for current holdings and placeholder candidates.
+- `src/data/seedWatchlist.ts`: research lane definitions plus editable seed
+  research cards for current holdings, AI-stack candidates, HIMS, and general
+  watchlist names.
 - `src/lib/marketData.ts`: market-data provider boundary, Alpaca quote
   normalization, stale/freshness labeling, and mock fallback data.
 - `src/lib/portfolio.ts`: typed portfolio model, settings normalization,
@@ -69,7 +71,8 @@ AI-drafted / Needs review.
   source-pack builder, stale/empty source states, and normalized AI-drafted
   research fields for manual review.
 - `src/lib/codexResearchQueue.ts`: local Codex research request builder,
-  result validator, source metadata normalizer, and ignored queue path helpers.
+  daily research desk checklist, result validator, source metadata normalizer,
+  import-update helper, and ignored queue path helpers.
 - `vite.config.ts`: Vite/Vitest config plus the local dev proxy that injects
   Alpaca Market Data headers from local environment variables.
 - `research-queue/`: ignored runtime request/result JSON folders plus committed
@@ -122,10 +125,10 @@ AI-drafted / Needs review.
   normalized review rows until the user accepts them; accepted sell rows may map
   into the sell-fill model, and realized gain/loss CSV values are preferred over
   matching account-activity sells.
-- Research boundary: AI-stack candidate scores only measure whether user-editable
-  thesis/setup fields are filled. They must not be framed as an AI model,
-  guaranteed recommendation, ranking of expected returns, or automated trade
-  signal.
+- Research boundary: candidate scores only measure whether user-editable
+  thesis/setup fields are filled across AI-stack and General watchlist lanes.
+  They must not be framed as an AI model, guaranteed recommendation, ranking of
+  expected returns, or automated trade signal.
 - Research-draft boundary: generated research drafts must stay behind a typed
   `ResearchProvider`, show source metadata, write into editable fields only,
   and remain marked AI-drafted / needs review until the user reviews them.
@@ -193,15 +196,17 @@ AI-drafted / Needs review.
     pay-yourself, and manually marked reinvestments, then lists current holdings,
     watchlist/research ideas, and cash as manual places to review.
 19. Research watchlist helpers group current holdings and placeholder candidates
-    by AI-stack layer, calculate manual checklist completeness, and filter the
-    candidate list by layer, score, holding status, and missing inputs.
+    by research lane, including the General watchlist lane, calculate manual
+    checklist completeness, and filter the candidate list by layer, score,
+    holding status, and missing inputs.
 20. The user can run research for the selected symbol or selected layer. The
     research provider returns recent-news, investor, filing, earnings, and
     sector-context source metadata; the app drafts thesis, catalyst,
     invalidation, risk notes, review date, and source notes into the editable
     card.
 21. The user can queue a Codex research request for the selected symbol. The app
-    creates a structured request JSON for manual worker processing, then can
+    creates a structured daily research desk request JSON for manual worker
+    processing, including source and import checklists for any ticker, then can
     import a local result JSON only after schema, symbol/request, source
     metadata, and non-recommendation validation pass.
 22. On each accepted local state change, the persistence boundary writes a

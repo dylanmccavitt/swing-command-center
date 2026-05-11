@@ -53,6 +53,7 @@ export type CodexResearchRequest = {
     research: ResearchFields
     tradeSetup: TradeSetupFields
   }
+  researchDesk: CodexResearchDeskContext
   requestedOutput: {
     schemaVersion: typeof CODEX_RESEARCH_RESULT_SCHEMA_VERSION
     fields: CodexResearchRequestedField[]
@@ -73,6 +74,37 @@ export type CodexResearchSourceMetadataField =
   | 'accessedAt'
   | 'publishedAt'
   | 'notes'
+
+export type CodexResearchSourceChecklistId =
+  | 'company_primary'
+  | 'filings_or_regulatory'
+  | 'recent_news'
+  | 'analyst_context'
+  | 'sector_or_peer_context'
+  | 'price_setup_context'
+
+export type CodexResearchImportChecklistId =
+  | 'catalyst'
+  | 'invalidation'
+  | 'target_stop_context'
+  | 'review_state'
+  | 'source_metadata'
+
+export type CodexResearchChecklistItem<TId extends string> = {
+  id: TId
+  label: string
+  required: boolean
+  notes: string
+}
+
+export type CodexResearchDeskContext = {
+  mode: 'daily_manual_research_desk'
+  subject: string
+  laneLabel: string
+  workerGoal: string
+  sourceChecklist: CodexResearchChecklistItem<CodexResearchSourceChecklistId>[]
+  importChecklist: CodexResearchChecklistItem<CodexResearchImportChecklistId>[]
+}
 
 export type CodexResearchResultSource = {
   id: string
@@ -127,6 +159,27 @@ export type CodexResearchResultValidationOptions = {
   expectedSymbol?: string
 }
 
+export type CodexResearchSourceMetadataSummary = {
+  total: number
+  fresh: number
+  stale: number
+  latestAccessedAt: string | null
+  typeCounts: Partial<Record<ResearchSourceType, number>>
+}
+
+type ValidCodexResearchValidation = Extract<
+  CodexResearchValidationResult,
+  { ok: true }
+>
+
+export type CodexResearchImportUpdate = {
+  card: SeedWatchlistItem
+  reviewState: 'needs_review'
+  sourceSummary: CodexResearchSourceMetadataSummary
+  updatedFields: CodexResearchRequestedField[]
+  message: string
+}
+
 const REQUESTED_FIELDS: CodexResearchRequestedField[] = [
   'thesis',
   'catalyst',
@@ -159,9 +212,93 @@ const RESEARCH_SOURCE_TYPES: ResearchSourceType[] = [
   'analyst_context',
 ]
 
+export const CODEX_RESEARCH_SOURCE_CHECKLIST: CodexResearchChecklistItem<CodexResearchSourceChecklistId>[] =
+  [
+    {
+      id: 'company_primary',
+      label: 'Company primary source',
+      required: true,
+      notes:
+        'Use investor relations, shareholder letters, presentations, earnings releases, or company news pages when available.',
+    },
+    {
+      id: 'filings_or_regulatory',
+      label: 'Filing or regulatory source',
+      required: true,
+      notes:
+        'Use SEC filings or relevant regulatory material. For HIMS/general healthcare names, include policy or platform risk when sourced.',
+    },
+    {
+      id: 'recent_news',
+      label: 'Recent news',
+      required: true,
+      notes:
+        'Check current public news for catalysts, guidance changes, product updates, or risk events.',
+    },
+    {
+      id: 'analyst_context',
+      label: 'Analyst context',
+      required: false,
+      notes:
+        'Report source-stated ratings, target-price ranges, revisions, and dates without creating an app rating.',
+    },
+    {
+      id: 'sector_or_peer_context',
+      label: 'Sector or peer context',
+      required: false,
+      notes:
+        'Use relevant industry, peer, macro, or category context instead of assuming the ticker is part of the AI stack.',
+    },
+    {
+      id: 'price_setup_context',
+      label: 'Price setup context',
+      required: false,
+      notes:
+        'Use source-reported price context, moving averages, support/resistance, or option strike context only as review inputs.',
+    },
+  ]
+
+export const CODEX_RESEARCH_IMPORT_CHECKLIST: CodexResearchChecklistItem<CodexResearchImportChecklistId>[] =
+  [
+    {
+      id: 'catalyst',
+      label: 'Catalyst',
+      required: true,
+      notes: 'Concrete events or data points to review next.',
+    },
+    {
+      id: 'invalidation',
+      label: 'Invalidation',
+      required: true,
+      notes: 'What would force a thesis rewrite or make the setup unusable.',
+    },
+    {
+      id: 'target_stop_context',
+      label: 'Target and stop context',
+      required: true,
+      notes:
+        'Source-backed target, stop, entry, and risk context without buy/sell instructions.',
+    },
+    {
+      id: 'review_state',
+      label: 'Review state',
+      required: true,
+      notes: 'Imported files must remain needs_review until the user marks them reviewed.',
+    },
+    {
+      id: 'source_metadata',
+      label: 'Source metadata',
+      required: true,
+      notes: 'Every claim should map back to a URL, publisher, accessed timestamp, and note.',
+    },
+  ]
+
 const PROHIBITED_RECOMMENDATION_PATTERNS = [
   /\b(buy|sell)\s+(now|shares?|the stock|this stock|this name)\b/i,
   /\b(recommend|recommendation)\s+(buying|selling|a buy|a sell|buy|sell)\b/i,
+  /\byou\s+should\s+(buy|sell|enter|exit|trim|short|add|reduce)\b/i,
+  /\b(set|place)\s+(a\s+)?(stop|stop-loss)\b/i,
+  /\b(our|my|the app)\s+target\b/i,
   /\b(guaranteed|risk-free)\b/i,
   /\b(will definitely|cannot lose|sure thing)\b/i,
 ]
@@ -186,6 +323,7 @@ export function buildCodexResearchRequest(
       research: { ...card.research },
       tradeSetup: { ...card.tradeSetup },
     },
+    researchDesk: buildCodexResearchDeskContext(card),
     requestedOutput: {
       schemaVersion: CODEX_RESEARCH_RESULT_SCHEMA_VERSION,
       fields: REQUESTED_FIELDS,
@@ -204,6 +342,23 @@ export function serializeCodexResearchRequest(
   return `${JSON.stringify(request, null, 2)}\n`
 }
 
+export function buildCodexResearchDeskContext(
+  card: SeedWatchlistItem,
+): CodexResearchDeskContext {
+  const symbol = normalizeSymbol(card.symbol)
+  const companyName = normalizeText(card.name) || symbol
+
+  return {
+    mode: 'daily_manual_research_desk',
+    subject: `${symbol} · ${companyName}`,
+    laneLabel: getAiStackLayerLabel(card.stackLayer),
+    workerGoal:
+      'Produce an importable, source-backed stock brief for any ticker without turning it into a recommendation.',
+    sourceChecklist: CODEX_RESEARCH_SOURCE_CHECKLIST.map((item) => ({ ...item })),
+    importChecklist: CODEX_RESEARCH_IMPORT_CHECKLIST.map((item) => ({ ...item })),
+  }
+}
+
 export function buildCodexResearchRequestPath(requestId: string): string {
   return `${CODEX_RESEARCH_REQUEST_DIR}/${requestId}.json`
 }
@@ -214,6 +369,68 @@ export function buildCodexResearchResultPath(requestId: string): string {
 
 export function buildCodexResearchDownloadName(requestId: string): string {
   return `${requestId}.json`
+}
+
+export function summarizeCodexResearchSourceMetadata(
+  sources: readonly ResearchSource[],
+): CodexResearchSourceMetadataSummary {
+  const typeCounts: Partial<Record<ResearchSourceType, number>> = {}
+  let fresh = 0
+  let stale = 0
+  let latestAccessedAt: string | null = null
+
+  for (const source of sources) {
+    typeCounts[source.type] = (typeCounts[source.type] ?? 0) + 1
+
+    if (source.freshness === 'stale') {
+      stale += 1
+    } else {
+      fresh += 1
+    }
+
+    if (
+      !latestAccessedAt ||
+      new Date(source.retrievedAt).getTime() >
+        new Date(latestAccessedAt).getTime()
+    ) {
+      latestAccessedAt = source.retrievedAt
+    }
+  }
+
+  return {
+    total: sources.length,
+    fresh,
+    stale,
+    latestAccessedAt,
+    typeCounts,
+  }
+}
+
+export function applyCodexResearchResultToCard(
+  card: SeedWatchlistItem,
+  validation: ValidCodexResearchValidation,
+): CodexResearchImportUpdate {
+  const updatedFields = REQUESTED_FIELDS.filter(
+    (field) => validation.draft.fields[field].length > 0,
+  )
+  const sourceSummary = summarizeCodexResearchSourceMetadata(validation.sources)
+
+  return {
+    card: {
+      ...card,
+      research: {
+        ...card.research,
+        ...validation.draft.fields,
+      },
+    },
+    reviewState: validation.draft.reviewState,
+    sourceSummary,
+    updatedFields,
+    message: `Imported ${sourceSummary.total} ${pluralize(
+      'source',
+      sourceSummary.total,
+    )} for ${validation.result.symbol}. Review catalyst, invalidation, target, stop, and source notes before using the card.`,
+  }
 }
 
 export function parseCodexResearchResultJson(
@@ -420,7 +637,7 @@ function validateResultSources(
     errors.push('sources must include at least one source.')
   }
 
-  return value.map((source, index) => {
+  const sources = value.map((source, index) => {
     if (!isRecord(source)) {
       errors.push(`sources[${index}] must be an object.`)
 
@@ -467,6 +684,20 @@ function validateResultSources(
       notes,
     }
   })
+  const seenIds = new Set<string>()
+
+  sources.forEach((source, index) => {
+    if (seenIds.has(source.id)) {
+      errors.push(
+        `sources[${index}].id duplicates another source id after normalization.`,
+      )
+      return
+    }
+
+    seenIds.add(source.id)
+  })
+
+  return sources
 }
 
 function readString(
@@ -605,7 +836,12 @@ function normalizeSourceId(value: string, index: number): string {
 }
 
 function buildRequestId(symbol: string, createdAt: Date): string {
-  return `${symbol.toLowerCase()}-${createdAt
+  const pathSafeSymbol = symbol
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  return `${pathSafeSymbol || 'symbol'}-${createdAt
     .toISOString()
     .replace(/[:.]/g, '-')
     .toLowerCase()}`
@@ -641,6 +877,10 @@ function containsProhibitedRecommendationCopy(value: string): boolean {
   return PROHIBITED_RECOMMENDATION_PATTERNS.some((pattern) =>
     pattern.test(value),
   )
+}
+
+function pluralize(noun: string, count: number): string {
+  return count === 1 ? noun : `${noun}s`
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

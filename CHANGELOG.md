@@ -12,6 +12,15 @@
 - Clarified Import review copy so accepted proceeds-only sells stay separate
   from recognized realized P/L, reserve, and pay-myself calculations until basis
   is present.
+- Polished the Research + Codex queue into a manual daily research desk for
+  HIMS, General watchlist names, and any tracked ticker.
+- Added source/import checklists to Codex request JSON, stronger result
+  validation, duplicate-source detection, source metadata summaries, and import
+  feedback that keeps drafts marked for review.
+- Expanded the research card with catalyst, invalidation, risk, entry, stop,
+  target, review date, source notes, and imported source metadata surfaces.
+- Updated Codex worker and research queue docs so manual workers can produce
+  importable JSON without API keys, brokerage access, or buy/sell instructions.
 
 ## 2026-05-09
 

@@ -4,9 +4,10 @@ import { execFileSync } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { seedWatchlist } from '../data/seedWatchlist'
+import { buildManualWatchlistCard, seedWatchlist } from '../data/seedWatchlist'
 import { RESEARCH_DRAFT_DISCLOSURE } from './researchProvider'
 import {
+  applyCodexResearchResultToCard,
   buildCodexResearchDownloadName,
   buildCodexResearchRequest,
   buildCodexResearchRequestPath,
@@ -15,6 +16,7 @@ import {
   CODEX_RESEARCH_RESULT_SCHEMA_VERSION,
   parseCodexResearchResultJson,
   serializeCodexResearchRequest,
+  summarizeCodexResearchSourceMetadata,
   validateCodexResearchResult,
   type CodexResearchResult,
 } from './codexResearchQueue'
@@ -84,6 +86,73 @@ describe('Codex research queue request creation', () => {
     expect(isIgnoredByGit('research-queue/requests/.gitkeep')).toBe(false)
     expect(isIgnoredByGit('research-queue/results/.gitkeep')).toBe(false)
   })
+
+  it('builds a daily research desk payload for HIMS and other general tickers', () => {
+    const card = seedWatchlist.find((item) => item.symbol === 'HIMS')
+    const request = buildCodexResearchRequest(card!, {
+      createdAt: new Date('2026-05-11T13:15:00.000Z'),
+    })
+
+    expect(request).toMatchObject({
+      requestId: 'hims-2026-05-11t13-15-00-000z',
+      symbol: 'HIMS',
+      companyName: 'Hims & Hers Health',
+      stackLayer: 'general_watchlist',
+      layerLabel: 'General watchlist',
+      researchDesk: {
+        mode: 'daily_manual_research_desk',
+        subject: 'HIMS · Hims & Hers Health',
+        laneLabel: 'General watchlist',
+        workerGoal:
+          'Produce an importable, source-backed stock brief for any ticker without turning it into a recommendation.',
+      },
+    })
+    expect(request.researchDesk.sourceChecklist.map((item) => item.id)).toEqual([
+      'company_primary',
+      'filings_or_regulatory',
+      'recent_news',
+      'analyst_context',
+      'sector_or_peer_context',
+      'price_setup_context',
+    ])
+    expect(request.researchDesk.importChecklist.map((item) => item.id)).toEqual([
+      'catalyst',
+      'invalidation',
+      'target_stop_context',
+      'review_state',
+      'source_metadata',
+    ])
+    expect(serializeCodexResearchRequest(request)).toContain('any ticker')
+    expect(serializeCodexResearchRequest(request)).toContain(
+      'HIMS · Hims & Hers Health',
+    )
+  })
+
+  it('uses path-safe request ids for punctuation tickers', () => {
+    const request = buildCodexResearchRequest(
+      buildManualWatchlistCard({
+        symbol: 'brk.b',
+        name: 'Berkshire Hathaway',
+        stackLayer: 'general_watchlist',
+      }),
+      {
+        createdAt: new Date('2026-05-11T13:45:00.000Z'),
+      },
+    )
+
+    expect(request).toMatchObject({
+      requestId: 'brk-b-2026-05-11t13-45-00-000z',
+      symbol: 'BRK.B',
+      companyName: 'Berkshire Hathaway',
+      layerLabel: 'General watchlist',
+    })
+    expect(buildCodexResearchRequestPath(request.requestId)).toBe(
+      'research-queue/requests/brk-b-2026-05-11t13-45-00-000z.json',
+    )
+    expect(request.expectedResultPath).toBe(
+      'research-queue/results/brk-b-2026-05-11t13-45-00-000z.result.json',
+    )
+  })
 })
 
 describe('Codex research result validation', () => {
@@ -124,6 +193,17 @@ describe('Codex research result validation', () => {
       title: 'NVIDIA investor presentation',
       url: 'https://investor.nvidia.com/events-and-presentations/',
       freshness: 'fresh',
+    })
+    expect(summarizeCodexResearchSourceMetadata(result.sources)).toMatchObject({
+      total: 3,
+      fresh: 3,
+      stale: 0,
+      latestAccessedAt: '2026-05-07T15:59:00.000Z',
+      typeCounts: {
+        analyst_context: 1,
+        investor_relations: 1,
+        sec_filings: 1,
+      },
     })
   })
 
@@ -177,6 +257,36 @@ describe('Codex research result validation', () => {
     )
   })
 
+  it('rejects duplicate source ids and direct entry, stop, or app target instructions', () => {
+    const parsed = validateCodexResearchResult({
+      ...buildValidResult(),
+      fields: {
+        ...buildValidResult().fields,
+        plannedEntry: 'You should enter near the next pullback.',
+        stop: 'Set a stop at the prior swing low.',
+        target: 'Our app target is 25% above the last close.',
+      },
+      sources: buildValidResult().sources.map((source) => ({
+        ...source,
+        id: 'same source',
+      })),
+    })
+
+    expect(parsed.ok).toBe(false)
+
+    if (parsed.ok) {
+      return
+    }
+
+    expect(parsed.errors).toEqual(
+      expect.arrayContaining([
+        'sources[1].id duplicates another source id after normalization.',
+        'sources[2].id duplicates another source id after normalization.',
+        'Result contains direct recommendation, buy/sell instruction, or guaranteed-outcome copy.',
+      ]),
+    )
+  })
+
   it('keeps queue instructions framed as manual research, not recommendations', () => {
     const guardrailCopy = CODEX_RESEARCH_QUEUE_GUARDRAILS.join(' ')
 
@@ -185,6 +295,61 @@ describe('Codex research result validation', () => {
     expect(guardrailCopy).toContain('do not call OpenAI APIs')
     expect(guardrailCopy).toContain('Do not log in to brokerage accounts')
     expect(guardrailCopy).toContain('buy/sell instructions')
+  })
+
+  it('builds an import update that preserves the card and requires review', () => {
+    const card = seedWatchlist.find((item) => item.symbol === 'HIMS')!
+    const validation = validateCodexResearchResult(
+      {
+        ...buildValidResult(),
+        requestId: 'hims-2026-05-11t13-15-00-000z',
+        symbol: 'HIMS',
+        companyName: 'Hims & Hers Health',
+        fields: {
+          ...buildValidResult().fields,
+          thesis:
+            'HIMS remains a manual-review consumer health brief with growth quality to verify.',
+          target:
+            'Source context only: compare source-reported analyst target range with current valuation.',
+          stop:
+            'Source context only: use regulatory and margin invalidation levels for manual risk planning.',
+          sourceNotes:
+            'HIMS IR: quarterly materials reviewed for subscriber and margin commentary.\nAnalyst context: public target range reviewed as source context only.',
+        },
+      },
+      {
+        expectedRequestId: 'hims-2026-05-11t13-15-00-000z',
+        expectedSymbol: 'HIMS',
+      },
+    )
+
+    expect(validation.ok).toBe(true)
+
+    if (!validation.ok) {
+      return
+    }
+
+    const update = applyCodexResearchResultToCard(card, validation)
+
+    expect(update.card).toMatchObject({
+      symbol: 'HIMS',
+      name: 'Hims & Hers Health',
+      stackLayer: 'general_watchlist',
+      tradeSetup: card.tradeSetup,
+      research: {
+        thesis:
+          'HIMS remains a manual-review consumer health brief with growth quality to verify.',
+        target:
+          'Source context only: compare source-reported analyst target range with current valuation.',
+        stop:
+          'Source context only: use regulatory and margin invalidation levels for manual risk planning.',
+      },
+    })
+    expect(update.reviewState).toBe('needs_review')
+    expect(update.sourceSummary.total).toBe(3)
+    expect(update.message).toContain(
+      'Imported 3 sources for HIMS. Review catalyst, invalidation, target, stop, and source notes before using the card.',
+    )
   })
 })
 

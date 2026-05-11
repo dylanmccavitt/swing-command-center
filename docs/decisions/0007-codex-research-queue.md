@@ -3,9 +3,9 @@
 ## Chosen
 
 Add a local JSON request/result queue for Codex or ChatGPT-assisted research.
-The app creates structured request files, validates manually produced short
-stock-report result files, and imports valid drafts into the existing editable
-research card as AI-drafted / Needs review.
+The app creates structured daily research desk request files for any ticker,
+validates manually produced short stock-report result files, and imports valid
+drafts into the existing editable research card as AI-drafted / Needs review.
 
 ## Why
 
@@ -35,6 +35,9 @@ and hidden automation while preserving typed validation and source metadata.
 - Generated request and result JSON live under `research-queue/` and are ignored
   by source control.
 - Request/result schemas and the worker prompt are committed.
+- Requests include source and import checklists so HIMS and other General
+  watchlist names are handled as first-class research subjects, not forced into
+  AI-stack assumptions.
 - Imported results must pass local validation, include source metadata, and use
   the standard manual-review disclosure.
 - Invalid, missing, pending, imported, and error states are visible in the
