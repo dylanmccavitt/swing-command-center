@@ -131,14 +131,14 @@ export function Import(props: { state: CommandCenterState }) {
             pill={`${rows.length} rows · ${unmapped} unmapped`}
           />
           <Ledger
-            columns="80px 1fr 70px 85px 95px 75px 82px"
+            columns="80px 1fr 70px 85px 95px 95px 82px"
             headers={[
               'date',
               'desc',
               <div className="num" key="qty">qty</div>,
               <div className="num" key="price">price</div>,
-              <div className="num" key="amount">amount</div>,
-              <div className="num" key="fees">fees</div>,
+              <div className="num" key="proceeds">proceeds</div>,
+              <div className="num" key="realized">realized</div>,
               <div className="num" key="type">type</div>,
             ]}
             rows={rows.slice(0, 12).map((row) => ({
@@ -157,8 +157,14 @@ export function Import(props: { state: CommandCenterState }) {
                 </button>,
                 <div className="num" key="qty">{row.quantity ?? ''}</div>,
                 <div className="num" key="price">{formatCurrency(row.price)}</div>,
-                <div className="num" key="amount">{formatCurrency(row.amount)}</div>,
-                <div className="num" key="fees">{formatCurrency(row.fees)}</div>,
+                <div className="num" key="proceeds">
+                  {formatCurrency(row.proceeds)}
+                </div>,
+                <div className="num" key="realized">
+                  {row.realizedGainLoss === null
+                    ? 'missing'
+                    : formatSignedCurrency(row.realizedGainLoss)}
+                </div>,
                 <div className="num" key="type">
                   <span
                     className={`card-status ${getImportRowStatusClass(row)}`}
@@ -181,12 +187,12 @@ export function Import(props: { state: CommandCenterState }) {
           <KV label="unmapped" value={unmapped} />
           <div className="dash-rule" />
           <KV
-            label="recognized P/L"
+            label="CSV recognized P/L"
             tone={csvRealized >= 0 ? 'pos' : 'neg'}
             value={formatSignedCurrency(csvRealized)}
           />
           <KV
-            label="accepted P/L"
+            label="accepted recognized P/L"
             tone={acceptedRealized >= 0 ? 'pos' : 'neg'}
             value={formatSignedCurrency(acceptedRealized)}
           />
@@ -194,7 +200,11 @@ export function Import(props: { state: CommandCenterState }) {
             label="accepted proceeds"
             value={formatCurrency(acceptedProceeds)}
           />
-          <KV label="needs basis" value={missingBasisSellRows.length} />
+          <KV
+            label="accepted proceeds-only"
+            value={acceptedMissingBasisSellRows.length}
+          />
+          <KV label="missing basis rows" value={missingBasisSellRows.length} />
           <KV
             label="journal realized"
             tone={journalRealized >= 0 ? 'pos' : 'neg'}
