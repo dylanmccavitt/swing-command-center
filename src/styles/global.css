@@ -803,6 +803,85 @@ dd {
   font-size: 11px;
 }
 
+.queue-desk {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 10px 0;
+  margin: 12px 0 14px;
+}
+
+.queue-desk-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.queue-desk-head strong {
+  font-size: 13px;
+}
+
+.queue-metrics {
+  display: grid;
+  gap: 6px;
+}
+
+.checklist-grid {
+  display: grid;
+  gap: 0;
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+}
+
+.checklist-grid.compact {
+  margin-top: 0;
+  border-top: none;
+}
+
+.check-item,
+.source-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.check-item strong,
+.source-row strong {
+  display: block;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.check-item span,
+.source-row small {
+  display: block;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.field-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.source-list {
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+}
+
+.source-row {
+  color: inherit;
+  text-decoration: none;
+}
+
+.source-row:hover strong {
+  color: var(--accent-text);
+}
+
 .layer {
   margin-bottom: 14px;
 }

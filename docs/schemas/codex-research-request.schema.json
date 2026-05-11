@@ -13,6 +13,7 @@
     "stackLayer",
     "layerLabel",
     "currentCard",
+    "researchDesk",
     "requestedOutput",
     "guardrails",
     "workerPromptPath",
@@ -56,6 +57,49 @@
         },
         "tradeSetup": {
           "$ref": "#/$defs/tradeSetupFields"
+        }
+      }
+    },
+    "researchDesk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "subject",
+        "laneLabel",
+        "workerGoal",
+        "sourceChecklist",
+        "importChecklist"
+      ],
+      "properties": {
+        "mode": {
+          "const": "daily_manual_research_desk"
+        },
+        "subject": {
+          "type": "string",
+          "minLength": 1
+        },
+        "laneLabel": {
+          "type": "string",
+          "minLength": 1
+        },
+        "workerGoal": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceChecklist": {
+          "type": "array",
+          "minItems": 6,
+          "items": {
+            "$ref": "#/$defs/sourceChecklistItem"
+          }
+        },
+        "importChecklist": {
+          "type": "array",
+          "minItems": 5,
+          "items": {
+            "$ref": "#/$defs/importChecklistItem"
+          }
         }
       }
     },
@@ -126,6 +170,45 @@
     }
   },
   "$defs": {
+    "sourceChecklistItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "required", "notes"],
+      "properties": {
+        "id": {
+          "enum": [
+            "company_primary",
+            "filings_or_regulatory",
+            "recent_news",
+            "analyst_context",
+            "sector_or_peer_context",
+            "price_setup_context"
+          ]
+        },
+        "label": { "type": "string", "minLength": 1 },
+        "required": { "type": "boolean" },
+        "notes": { "type": "string", "minLength": 1 }
+      }
+    },
+    "importChecklistItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "required", "notes"],
+      "properties": {
+        "id": {
+          "enum": [
+            "catalyst",
+            "invalidation",
+            "target_stop_context",
+            "review_state",
+            "source_metadata"
+          ]
+        },
+        "label": { "type": "string", "minLength": 1 },
+        "required": { "type": "boolean" },
+        "notes": { "type": "string", "minLength": 1 }
+      }
+    },
     "researchFields": {
       "type": "object",
       "additionalProperties": false,

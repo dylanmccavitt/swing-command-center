@@ -9,11 +9,14 @@ import {
 import type { CommandCenterState } from '../../state/useCommandCenterState'
 import { formatCurrency } from '../../state/useCommandCenterState'
 import { RESEARCH_DRAFT_DISCLOSURE } from '../../lib/researchProvider'
+import { summarizeCodexResearchSourceMetadata } from '../../lib/codexResearchQueue'
 
 export function ResearchCard(props: { state: CommandCenterState }) {
   const card = props.state.selectedResearchCard
   const score = props.state.selectedResearchScore
   const quote = card ? props.state.quotesBySymbol.get(card.symbol) : undefined
+  const run = props.state.selectedResearchRun
+  const sourceSummary = summarizeCodexResearchSourceMetadata(run.sources)
 
   if (!card) {
     return (
@@ -38,6 +41,22 @@ export function ResearchCard(props: { state: CommandCenterState }) {
           quote
             ? `${formatCurrency(quote.price)} · ${quote.source.toUpperCase()}`
             : 'waiting for Alpaca'
+        }
+      />
+      <KV
+        label="review"
+        value={
+          run.updatedAt
+            ? `${run.status.replaceAll('_', ' ')} · ${run.updatedAt}`
+            : run.status.replaceAll('_', ' ')
+        }
+      />
+      <KV
+        label="sources"
+        value={
+          sourceSummary.total > 0
+            ? `${sourceSummary.total} · ${sourceSummary.fresh} fresh · ${sourceSummary.stale} stale`
+            : 'not imported'
         }
       />
       <ScoreBar
@@ -81,16 +100,20 @@ export function ResearchCard(props: { state: CommandCenterState }) {
           props.state.actions.updateResearchField(card.symbol, 'thesis', value)
         }
       />
-      <FieldRow>
+      <div className="field-stack">
         <Field
-          label="Setup target"
-          value={card.research.target}
+          label="Catalyst"
+          textarea
+          placeholder="Events, filings, earnings, news, or setup context to review next."
+          value={card.research.catalyst}
           onChange={(value) =>
-            props.state.actions.updateResearchField(card.symbol, 'target', value)
+            props.state.actions.updateResearchField(card.symbol, 'catalyst', value)
           }
         />
         <Field
           label="Invalidation"
+          textarea
+          placeholder="What would force a thesis rewrite or make the setup unusable."
           value={card.research.invalidation}
           onChange={(value) =>
             props.state.actions.updateResearchField(
@@ -100,27 +123,93 @@ export function ResearchCard(props: { state: CommandCenterState }) {
             )
           }
         />
-      </FieldRow>
-      <FieldRow>
         <Field
-          label="Catalyst window"
-          value={card.research.catalyst}
-          onChange={(value) =>
-            props.state.actions.updateResearchField(card.symbol, 'catalyst', value)
-          }
-        />
-        <Field
-          label="Source"
-          value={card.research.sourceNotes}
+          label="Risk notes"
+          textarea
+          placeholder="Sourced risks, unknowns, valuation pressure, execution risk, or policy exposure."
+          value={card.research.riskNotes}
           onChange={(value) =>
             props.state.actions.updateResearchField(
               card.symbol,
-              'sourceNotes',
+              'riskNotes',
+              value,
+            )
+          }
+        />
+      </div>
+      <FieldRow>
+        <Field
+          label="Planned entry context"
+          value={card.research.plannedEntry}
+          onChange={(value) =>
+            props.state.actions.updateResearchField(
+              card.symbol,
+              'plannedEntry',
+              value,
+            )
+          }
+        />
+        <Field
+          label="Stop context"
+          value={card.research.stop}
+          onChange={(value) =>
+            props.state.actions.updateResearchField(card.symbol, 'stop', value)
+          }
+        />
+      </FieldRow>
+      <FieldRow>
+        <Field
+          label="Target context"
+          value={card.research.target}
+          onChange={(value) =>
+            props.state.actions.updateResearchField(card.symbol, 'target', value)
+          }
+        />
+        <Field
+          label="Review date"
+          type="date"
+          value={card.research.reviewDate}
+          onChange={(value) =>
+            props.state.actions.updateResearchField(
+              card.symbol,
+              'reviewDate',
               value,
             )
           }
         />
       </FieldRow>
+      <Field
+        label="Source notes"
+        textarea
+        placeholder="URLs, publisher notes, analyst target/rating context, and unavailable data notes."
+        value={card.research.sourceNotes}
+        onChange={(value) =>
+          props.state.actions.updateResearchField(
+            card.symbol,
+            'sourceNotes',
+            value,
+          )
+        }
+      />
+      {run.sources.length > 0 ? (
+        <div className="source-list" aria-label="Imported sources">
+          {run.sources.map((source) => (
+            <a
+              className="source-row"
+              href={source.url}
+              key={source.id}
+              rel="noreferrer"
+              target="_blank"
+            >
+              <span>
+                <strong>{source.title}</strong>
+                <small>{source.summary}</small>
+              </span>
+              <span className="card-status draft">{source.freshness}</span>
+            </a>
+          ))}
+        </div>
+      ) : null}
       <Hint variant="warn">{RESEARCH_DRAFT_DISCLOSURE}</Hint>
     </>
   )

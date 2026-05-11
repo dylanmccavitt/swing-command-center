@@ -102,6 +102,7 @@ import {
   groupResearchCardsByLayer,
 } from '../lib/researchWatchlist'
 import {
+  applyCodexResearchResultToCard,
   buildCodexResearchDownloadName,
   buildCodexResearchRequest,
   buildCodexResearchRequestPath,
@@ -1463,16 +1464,20 @@ export function useCommandCenterState() {
         return
       }
 
+      const importUpdate = applyCodexResearchResultToCard(
+        researchCards.find((card) => card.symbol === symbol) ??
+          buildManualWatchlistCard({
+            symbol: validation.result.symbol,
+            name: validation.result.companyName,
+            stackLayer: 'general_watchlist',
+          }),
+        validation,
+      )
+
       setResearchCards((current) =>
         current.map((card) =>
           card.symbol === symbol
-            ? {
-                ...card,
-                research: {
-                  ...card.research,
-                  ...validation.draft.fields,
-                },
-              }
+            ? applyCodexResearchResultToCard(card, validation).card
             : card,
         ),
       )
@@ -1481,8 +1486,7 @@ export function useCommandCenterState() {
         [symbol]: {
           status: 'needs_review',
           updatedAt: importedAt,
-          message:
-            'Codex notes imported as a draft. Check the sources before trusting them.',
+          message: importUpdate.message,
           sources: validation.sources,
           draft: validation.draft,
         },
@@ -1493,8 +1497,7 @@ export function useCommandCenterState() {
           ...(current[symbol] ?? queuedRecord),
           status: 'imported',
           updatedAt: importedAt,
-          message:
-            'Result imported into the research card. Review it before using it.',
+          message: importUpdate.message,
           errors: [],
         },
       }))
