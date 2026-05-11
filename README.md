@@ -76,8 +76,9 @@ Do not commit `.env.local`.
 5. Use Cash plan to review realized profit, reserve, pay-myself, and redeploy
    distribution.
 6. Use Import to preview Robinhood CSV rows, accept or reject matches, reconcile
-   totals, review derived holdings, and apply accepted holdings/lots or sell
-   fills. Current positions CSVs can update shares and basis after review.
+   totals, review derived holdings, and sync accepted holdings/lots or sell
+   fills. Current positions CSVs can update shares and basis after review, and
+   eligible accepted account-activity buys can sync directly into holdings.
    Account activity CSVs can prove cash proceeds or derive ledger positions
    when enough data is present; realized gain/loss CSVs or manual basis are
    needed before reserve and pay-myself estimates are meaningful.

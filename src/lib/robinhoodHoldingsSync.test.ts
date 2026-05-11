@@ -9,7 +9,9 @@ import {
 } from './robinhoodCsv'
 import {
   applyRobinhoodDerivedHolding,
+  buildRobinhoodHoldingsReviewEntry,
   deriveRobinhoodHoldings,
+  syncAcceptedRobinhoodHoldingsToPortfolio,
 } from './robinhoodHoldingsSync'
 
 const IMPORTED_AT = '2026-05-11T12:00:00.000Z'
@@ -148,6 +150,158 @@ describe('Robinhood holdings sync', () => {
       shares: '6',
       averageCost: '125.5',
     })
+  })
+
+  it('syncs an accepted CSV buy into holdings and manual lots in one state transition', () => {
+    const parsed = parseRobinhoodCsvFile({
+      fileName: 'account-activity.csv',
+      importedAt: IMPORTED_AT,
+      reportKind: 'account_activity',
+      text: [
+        'Activity Date,Instrument,Description,Trans Code,Quantity,Price,Amount',
+        '05/08/2026,HIMS,Hims & Hers Health,Buy,25,$27.34,"($683.50)"',
+      ].join('\n'),
+    })
+    const rows = updateRobinhoodRowReviewState(
+      parsed.rows,
+      parsed.rows[0].id,
+      'accepted',
+    )
+    const synced = syncAcceptedRobinhoodHoldingsToPortfolio({
+      holdings: [],
+      holdingsReview: {},
+      imports: parsed.batch ? [parsed.batch] : [],
+      manualLots: {},
+      rows,
+      symbols: ['HIMS'],
+      updatedAt: IMPORTED_AT,
+    })
+
+    expect(synced.appliedHoldings.map((holding) => holding.symbol)).toEqual([
+      'HIMS',
+    ])
+    expect(synced.holdings[0]).toMatchObject({
+      name: 'Hims & Hers Health',
+      symbol: 'HIMS',
+    })
+    expect(synced.manualLots.HIMS).toEqual({
+      shares: '25',
+      averageCost: '27.34',
+    })
+    expect(synced.holdingsReview.HIMS).toMatchObject({
+      decision: 'applied',
+      shares: 25,
+      averageCost: 27.34,
+      appliedAt: IMPORTED_AT,
+    })
+  })
+
+  it('syncs accepted shares while keeping missing basis explicit', () => {
+    const parsed = parseRobinhoodCsvFile({
+      fileName: 'account-activity.csv',
+      importedAt: IMPORTED_AT,
+      reportKind: 'account_activity',
+      text: [
+        'Activity Date,Instrument,Description,Trans Code,Quantity,Price,Amount',
+        '05/01/2026,AMD,AMD buy,Buy,10,,',
+      ].join('\n'),
+    })
+    const rows = updateRobinhoodRowReviewState(
+      parsed.rows,
+      parsed.rows[0].id,
+      'accepted',
+    )
+    const synced = syncAcceptedRobinhoodHoldingsToPortfolio({
+      holdings: [],
+      holdingsReview: {},
+      imports: parsed.batch ? [parsed.batch] : [],
+      manualLots: {},
+      rows,
+      symbols: ['AMD'],
+      updatedAt: IMPORTED_AT,
+    })
+
+    expect(synced.appliedHoldings[0]).toMatchObject({
+      symbol: 'AMD',
+      shares: 10,
+      averageCost: null,
+      status: 'missing_basis',
+    })
+    expect(synced.manualLots.AMD).toEqual({
+      shares: '10',
+      averageCost: '',
+    })
+    expect(synced.holdingsReview.AMD).toMatchObject({
+      decision: 'applied',
+      averageCost: null,
+    })
+  })
+
+  it('does not sync rejected CSV rows into portfolio state', () => {
+    const parsed = parseRobinhoodCsvFile({
+      fileName: 'account-activity.csv',
+      importedAt: IMPORTED_AT,
+      reportKind: 'account_activity',
+      text: [
+        'Activity Date,Instrument,Description,Trans Code,Quantity,Price,Amount',
+        '05/01/2026,AMD,AMD buy,Buy,10,$10.00,"($100.00)"',
+      ].join('\n'),
+    })
+    const rows = updateRobinhoodRowReviewState(
+      parsed.rows,
+      parsed.rows[0].id,
+      'rejected',
+    )
+    const synced = syncAcceptedRobinhoodHoldingsToPortfolio({
+      holdings: [],
+      holdingsReview: {},
+      imports: parsed.batch ? [parsed.batch] : [],
+      manualLots: {},
+      rows,
+      symbols: ['AMD'],
+      updatedAt: IMPORTED_AT,
+    })
+
+    expect(synced.appliedHoldings).toEqual([])
+    expect(synced.holdings).toEqual([])
+    expect(synced.manualLots).toEqual({})
+    expect(synced.holdingsReview).toEqual({})
+  })
+
+  it('does not re-apply an already applied derived holding fingerprint', () => {
+    const parsed = parseRobinhoodCsvFile({
+      fileName: 'account-activity.csv',
+      importedAt: IMPORTED_AT,
+      reportKind: 'account_activity',
+      text: [
+        'Activity Date,Instrument,Description,Trans Code,Quantity,Price,Amount',
+        '05/08/2026,HIMS,Hims & Hers Health,Buy,25,$27.34,"($683.50)"',
+      ].join('\n'),
+    })
+    const rows = acceptRows(parsed.rows)
+    const holding = deriveRobinhoodHoldings({
+      imports: parsed.batch ? [parsed.batch] : [],
+      rows,
+    })[0]
+    const synced = syncAcceptedRobinhoodHoldingsToPortfolio({
+      holdings: [],
+      holdingsReview: {
+        HIMS: buildRobinhoodHoldingsReviewEntry({
+          appliedAt: IMPORTED_AT,
+          decision: 'applied',
+          holding,
+          updatedAt: IMPORTED_AT,
+        }),
+      },
+      imports: parsed.batch ? [parsed.batch] : [],
+      manualLots: {},
+      rows,
+      updatedAt: IMPORTED_AT,
+    })
+
+    expect(synced.appliedHoldings).toEqual([])
+    expect(synced.holdings).toEqual([])
+    expect(synced.manualLots).toEqual({})
   })
 
   it('keeps rejected rows out of holdings, buying power, and realized P/L', () => {

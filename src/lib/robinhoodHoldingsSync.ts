@@ -60,6 +60,13 @@ export type ManualLotPatchMap = Record<
   }
 >
 
+export type RobinhoodPortfolioSyncResult = {
+  holdings: SeedHolding[]
+  manualLots: ManualLotPatchMap
+  holdingsReview: RobinhoodHoldingsReviewMap
+  appliedHoldings: RobinhoodDerivedHolding[]
+}
+
 export function deriveRobinhoodHoldings(input: {
   imports: readonly RobinhoodImportBatch[]
   rows: readonly RobinhoodNormalizedRow[]
@@ -166,6 +173,71 @@ export function applyRobinhoodDerivedHolding(input: {
   }
 
   return { holdings, manualLots }
+}
+
+export function syncAcceptedRobinhoodHoldingsToPortfolio(input: {
+  imports: readonly RobinhoodImportBatch[]
+  rows: readonly RobinhoodNormalizedRow[]
+  holdings: readonly SeedHolding[]
+  manualLots: ManualLotPatchMap
+  holdingsReview: RobinhoodHoldingsReviewMap
+  symbols?: readonly string[]
+  updatedAt: string
+}): RobinhoodPortfolioSyncResult {
+  const symbolSet = input.symbols
+    ? new Set(input.symbols.map((symbol) => symbol.toUpperCase()))
+    : null
+  const holdingsToApply = deriveRobinhoodHoldings({
+    imports: input.imports,
+    rows: input.rows,
+  }).filter((holding) => {
+    if (symbolSet && !symbolSet.has(holding.symbol)) {
+      return false
+    }
+
+    if (
+      holding.shares === null ||
+      holding.status === 'missing_shares' ||
+      holding.status === 'closed'
+    ) {
+      return false
+    }
+
+    const decision = getRobinhoodHoldingsReviewDecision(
+      input.holdingsReview,
+      holding,
+    )
+
+    return decision !== 'rejected' && decision !== 'applied'
+  })
+  const appliedState = holdingsToApply.reduce(
+    (state, holding) =>
+      applyRobinhoodDerivedHolding({
+        holdings: state.holdings,
+        manualLots: state.manualLots,
+        holding,
+      }),
+    {
+      holdings: [...input.holdings],
+      manualLots: { ...input.manualLots },
+    },
+  )
+  const holdingsReview = { ...input.holdingsReview }
+
+  for (const holding of holdingsToApply) {
+    holdingsReview[holding.symbol] = buildRobinhoodHoldingsReviewEntry({
+      holding,
+      decision: 'applied',
+      updatedAt: input.updatedAt,
+      appliedAt: input.updatedAt,
+    })
+  }
+
+  return {
+    ...appliedState,
+    holdingsReview,
+    appliedHoldings: holdingsToApply,
+  }
 }
 
 function deriveCurrentPositionHoldings(

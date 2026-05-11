@@ -64,8 +64,8 @@ AI-drafted / Needs review.
   sell-fill mapper, tax-planning buckets, and import-aware planning export.
 - `src/lib/robinhoodHoldingsSync.ts`: accepted-row holdings derivation layer
   that projects current positions from position CSV rows or sufficient
-  buy/sell ledger rows, keeps missing basis explicit, and builds apply patches
-  for `holdings` plus `manualLots`.
+  buy/sell ledger rows, keeps missing basis explicit, and syncs eligible
+  accepted rows into `holdings`, `manualLots`, and holdings-review decisions.
 - `src/lib/profitCashPlan.ts`: manual helper that feeds remaining filled-sell
   buying power into current holdings, research ideas, and cash as review
   choices.
@@ -202,16 +202,19 @@ AI-drafted / Needs review.
     re-imports, and reconciliation states such as matched, needs review,
     missing basis, missing proceeds, possible wash sale, and unsupported row.
 17. Robinhood imported rows must be accepted before they affect buying power,
-    pay-yourself, reinvest cash, or holdings/lots sync. Accepted sell rows map
-    into reviewed sell-fill records; matching realized gain/loss rows take
-    precedence over account-activity sell rows for proceeds, basis, realized
-    P/L, holding period, and wash-sale fields.
+    pay-yourself, reinvest cash, or holdings/lots sync. Accepting an eligible
+    buy or position row syncs the affected open symbol into local holdings and
+    manual lots; the Import catch-up action can also sync all accepted rows.
+    Accepted sell rows map into reviewed sell-fill records; matching realized
+    gain/loss rows take precedence over account-activity sell rows for
+    proceeds, basis, realized P/L, holding period, and wash-sale fields.
 18. Robinhood holdings sync derives per-symbol positions from accepted current
     positions CSV rows first, then from sufficient accepted account-activity
     buy/sell ledgers. The Import view compares the current app lot against the
     CSV-derived lot and lets the user reject, apply one symbol, or apply all
-    reviewed symbols. Missing share counts and closed projections block
-    applying; missing basis leaves average cost blank instead of inventing it.
+    reviewed symbols. Row acceptance also applies the affected eligible symbol
+    immediately. Missing share counts and closed projections block applying;
+    missing basis leaves average cost blank instead of inventing it.
 19. Robinhood tax-planning buckets aggregate accepted short-term and long-term
     realized gain/loss, wash-sale disallowed losses, dividends/interest,
     reserve estimate, pay-yourself set-aside, and remaining reinvestable cash.

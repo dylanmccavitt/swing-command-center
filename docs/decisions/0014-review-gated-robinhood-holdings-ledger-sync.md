@@ -3,9 +3,11 @@
 ## Chosen
 
 Extend the local Robinhood CSV layer so current positions CSVs and accepted
-account-activity ledger rows can derive holdings/lots behind a separate review
-gate. Stable row fingerprints dedupe newer full-history CSV exports before any
-portfolio state changes.
+account-activity ledger rows can derive holdings/lots behind row review.
+Accepting an eligible row syncs the affected open symbol into local portfolio
+state, and a catch-up action applies already accepted rows. Stable row
+fingerprints dedupe newer full-history CSV exports before any portfolio state
+changes.
 
 ## Why
 
@@ -26,16 +28,21 @@ position without guessing.
 
 ## Tradeoffs
 
-The review layer means importing a CSV is a two-step flow: accept rows, then
-apply reviewed holdings. That keeps the portfolio from changing silently and
-lets missing basis stay visible. Ledger-derived positions are conservative:
-they require accepted buy/sell quantities and enough basis to compute average
-cost; unsupported transfers, splits, and missing quantities are not inferred.
+The review layer means importing a CSV never changes portfolio state until rows
+are accepted. Once accepted, eligible open positions can sync immediately so the
+CSV workflow behaves like the main data-update path instead of a separate manual
+lot-entry task. Ledger-derived positions are conservative: they require
+accepted buy/sell quantities, and missing basis leaves average cost blank rather
+than guessed. Unsupported transfers, splits, and missing quantities are not
+inferred.
 
 ## Consequences
 
 - Current positions CSV rows normalize as `position` rows and can update shares
   plus average cost after review.
+- Accepting an eligible buy or position row syncs that symbol into `holdings`
+  and `manualLots`; the Import view also has an apply-accepted-rows catch-up
+  path for rows accepted before the sync ran.
 - Full account activity re-imports use stable fingerprints so previously
   imported rows keep their review decisions and do not duplicate.
 - Accepted realized gain/loss rows continue to take precedence over matching

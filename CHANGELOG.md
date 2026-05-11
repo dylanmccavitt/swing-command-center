@@ -4,7 +4,7 @@
 
 - Added review-gated Robinhood holdings sync for current positions CSVs and
   accepted account-activity ledger rows, including current-vs-CSV lot review
-  and per-symbol or apply-all updates to local holdings.
+  and accepted-row, per-symbol, or apply-all updates to local holdings.
 - Added stable Robinhood CSV row fingerprints so newer full-history exports
   dedupe old rows and preserve prior row decisions.
 - Hardened Robinhood CSV parsing for account-activity and realized gain/loss

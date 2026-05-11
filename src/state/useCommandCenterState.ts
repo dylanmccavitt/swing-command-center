@@ -87,7 +87,7 @@ import {
   applyRobinhoodDerivedHolding,
   buildRobinhoodHoldingsReviewEntry,
   deriveRobinhoodHoldings,
-  getRobinhoodHoldingsReviewDecision,
+  syncAcceptedRobinhoodHoldingsToPortfolio,
   type RobinhoodDerivedHolding,
   type RobinhoodHoldingsReviewMap,
 } from '../lib/robinhoodHoldingsSync'
@@ -1210,8 +1210,54 @@ export function useCommandCenterState() {
     rowId: string,
     reviewState: RobinhoodReviewState,
   ) {
-    setRobinhoodRows((current) =>
-      updateRobinhoodRowReviewState(current, rowId, reviewState),
+    const reviewedRow = robinhoodRows.find((row) => row.id === rowId)
+    const nextRows = updateRobinhoodRowReviewState(
+      robinhoodRows,
+      rowId,
+      reviewState,
+    )
+
+    setRobinhoodRows(nextRows)
+
+    if (reviewState !== 'accepted' || !reviewedRow?.symbol) {
+      return
+    }
+
+    const updatedAt = new Date().toISOString()
+    const synced = syncAcceptedRobinhoodHoldingsToPortfolio({
+      holdings,
+      holdingsReview: robinhoodHoldingsReview,
+      imports: robinhoodImports,
+      manualLots,
+      rows: nextRows,
+      symbols: [reviewedRow.symbol],
+      updatedAt,
+    })
+
+    if (synced.appliedHoldings.length === 0) {
+      if (reviewedRow.kind === 'sell') {
+        setRobinhoodImportMessage(
+          `${reviewedRow.symbol} sell accepted. It now feeds buying power and realized P/L when basis is available.`,
+        )
+      }
+
+      return
+    }
+
+    const firstApplied = synced.appliedHoldings[0]
+
+    setHoldings(synced.holdings)
+    setManualLots(synced.manualLots)
+    setResearchCards((current) =>
+      markAppliedRobinhoodHoldingsAsCurrent(current, synced.appliedHoldings),
+    )
+    setRobinhoodHoldingsReview(synced.holdingsReview)
+    setSelectedPlannerSymbol(firstApplied.symbol)
+    setSelectedResearchSymbol(firstApplied.symbol)
+    setRobinhoodImportMessage(
+      firstApplied.averageCost === null
+        ? `${firstApplied.symbol} row accepted and shares synced. Average cost stays blank because basis is missing.`
+        : `${firstApplied.symbol} row accepted and synced to holdings, lots, and planner state.`,
     )
   }
 
@@ -1290,89 +1336,32 @@ export function useCommandCenterState() {
   }
 
   function applyAllRobinhoodDerivedHoldings() {
-    const holdingsToApply = robinhoodDerivedHoldings.filter((holding) => {
-      if (
-        holding.shares === null ||
-        holding.status === 'missing_shares' ||
-        holding.status === 'closed'
-      ) {
-        return false
-      }
-
-      return (
-        getRobinhoodHoldingsReviewDecision(
-          robinhoodHoldingsReview,
-          holding,
-        ) !== 'rejected'
-      )
+    const updatedAt = new Date().toISOString()
+    const synced = syncAcceptedRobinhoodHoldingsToPortfolio({
+      holdings,
+      holdingsReview: robinhoodHoldingsReview,
+      imports: robinhoodImports,
+      manualLots,
+      rows: robinhoodRows,
+      updatedAt,
     })
 
-    if (holdingsToApply.length === 0) {
+    if (synced.appliedHoldings.length === 0) {
       setRobinhoodImportMessage(
         'No reviewed Robinhood holdings are ready to apply.',
       )
       return
     }
 
-    const updatedAt = new Date().toISOString()
-    const appliedState = holdingsToApply.reduce(
-      (state, holding) =>
-        applyRobinhoodDerivedHolding({
-          holdings: state.holdings,
-          manualLots: state.manualLots,
-          holding,
-        }),
-      {
-        holdings,
-        manualLots,
-      },
+    setHoldings(synced.holdings)
+    setManualLots(synced.manualLots)
+    setResearchCards((current) =>
+      markAppliedRobinhoodHoldingsAsCurrent(current, synced.appliedHoldings),
     )
-
-    setHoldings(appliedState.holdings)
-    setManualLots(appliedState.manualLots)
-    setResearchCards((current) => {
-      let next = current
-
-      for (const holding of holdingsToApply) {
-        if (next.some((card) => card.symbol === holding.symbol)) {
-          next = next.map((card) =>
-            card.symbol === holding.symbol
-              ? { ...card, seedType: 'current_holding' }
-              : card,
-          )
-          continue
-        }
-
-        next = [
-          ...next,
-          buildManualWatchlistCard({
-            symbol: holding.symbol,
-            name: holding.name,
-            stackLayer: 'general_watchlist',
-            seedType: 'current_holding',
-          }),
-        ]
-      }
-
-      return next
-    })
-    setRobinhoodHoldingsReview((current) => {
-      const next = { ...current }
-
-      for (const holding of holdingsToApply) {
-        next[holding.symbol] = buildRobinhoodHoldingsReviewEntry({
-          holding,
-          decision: 'applied',
-          updatedAt,
-          appliedAt: updatedAt,
-        })
-      }
-
-      return next
-    })
+    setRobinhoodHoldingsReview(synced.holdingsReview)
     setRobinhoodImportMessage(
-      `Applied ${holdingsToApply.length} reviewed Robinhood holding ${
-        holdingsToApply.length === 1 ? 'update' : 'updates'
+      `Applied ${synced.appliedHoldings.length} reviewed Robinhood holding ${
+        synced.appliedHoldings.length === 1 ? 'update' : 'updates'
       } to portfolio lots.`,
     )
   }
@@ -1731,10 +1720,39 @@ export function useCommandCenterState() {
 
   function applyAcceptedRobinhoodRows() {
     const acceptedSellRows = buildSellFillsFromAcceptedRobinhoodRows(robinhoodRows)
+    const updatedAt = new Date().toISOString()
+    const synced = syncAcceptedRobinhoodHoldingsToPortfolio({
+      holdings,
+      holdingsReview: robinhoodHoldingsReview,
+      imports: robinhoodImports,
+      manualLots,
+      rows: robinhoodRows,
+      updatedAt,
+    })
+
+    if (synced.appliedHoldings.length > 0) {
+      setHoldings(synced.holdings)
+      setManualLots(synced.manualLots)
+      setResearchCards((current) =>
+        markAppliedRobinhoodHoldingsAsCurrent(current, synced.appliedHoldings),
+      )
+      setRobinhoodHoldingsReview(synced.holdingsReview)
+      setSelectedPlannerSymbol(synced.appliedHoldings[0].symbol)
+      setSelectedResearchSymbol(synced.appliedHoldings[0].symbol)
+    }
+
+    const holdingsMessage =
+      synced.appliedHoldings.length === 0
+        ? 'No new accepted holding updates were ready.'
+        : `Synced ${synced.appliedHoldings.length} accepted holding ${
+            synced.appliedHoldings.length === 1 ? 'update' : 'updates'
+          }.`
     setRobinhoodImportMessage(
-      acceptedSellRows.length === 1
-        ? 'Applied 1 accepted Robinhood sell row to buying-power planning.'
-        : `Applied ${acceptedSellRows.length} accepted Robinhood sell rows to buying-power planning.`,
+      `${holdingsMessage} ${
+        acceptedSellRows.length === 1
+          ? 'Applied 1 accepted Robinhood sell row to buying-power planning.'
+          : `Applied ${acceptedSellRows.length} accepted Robinhood sell rows to buying-power planning.`
+      }`,
     )
   }
 
@@ -2020,6 +2038,36 @@ function cloneSeedWatchlist(
     research: { ...card.research },
     tradeSetup: { ...card.tradeSetup },
   }))
+}
+
+function markAppliedRobinhoodHoldingsAsCurrent(
+  cards: readonly SeedWatchlistItem[],
+  holdings: readonly RobinhoodDerivedHolding[],
+): SeedWatchlistItem[] {
+  let next = [...cards]
+
+  for (const holding of holdings) {
+    if (next.some((card) => card.symbol === holding.symbol)) {
+      next = next.map((card) =>
+        card.symbol === holding.symbol
+          ? { ...card, seedType: 'current_holding' }
+          : card,
+      )
+      continue
+    }
+
+    next = [
+      ...next,
+      buildManualWatchlistCard({
+        symbol: holding.symbol,
+        name: holding.name,
+        stackLayer: 'general_watchlist',
+        seedType: 'current_holding',
+      }),
+    ]
+  }
+
+  return next
 }
 
 function buildResearchRunRecord(

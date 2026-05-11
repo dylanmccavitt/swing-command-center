@@ -282,7 +282,7 @@ export function Import(props: { state: CommandCenterState }) {
                 props.state.actions.applyAcceptedRobinhoodRows()
               }}
             >
-              Apply matches
+              Apply accepted rows
             </button>
           </div>
         </Panel>
