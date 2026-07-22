@@ -56,10 +56,3 @@ repo-level checks when a slice changes app behavior.
   clearly documented blocker.
 - Work is committed on the issue branch/worktree.
 - The next step is clear for the following thread.
-
-## Review finding lifecycle
-
-- Reply in the original review thread whenever a finding is fixed, blocked, deferred, rejected, or otherwise updated.
-- Include the disposition, relevant commit, verification, and any remaining work.
-- A finding is incomplete until its thread has a current status reply, even if the code changed or the comment became outdated.
-- Do not resolve review threads without explicit authorization.
